@@ -1,23 +1,33 @@
 <!--
-  APP LEITOR DE PATRIMÔNIO — ESF FLOR DO CERRADO
-  Arquivo HTML para colar no Apps Script como um arquivo chamado "Index"
-  (Arquivo > Novo > Arquivo HTML > nomear exatamente "Index")
+  APP LEITOR DE PATRIMÔNIO — ESF FLOR DO CERRADO (versão hospedada / GitHub Pages)
 
-  Funciona junto com AppPatrimonio_Code.gs no mesmo projeto do Apps Script.
-  NÃO abra este arquivo direto no navegador fora do Apps Script — ele depende
-  de google.script.run, que só existe dentro do ambiente do Apps Script.
+  Esta versão NÃO roda dentro do Apps Script — ela é uma página comum, hospedada
+  fora (ex: GitHub Pages), que conversa com o Apps Script por trás dos panos via
+  fetch(). Isso evita o iframe interno do Apps Script, que no iPhone bloqueia a
+  abertura do teclado nos campos de texto.
+
+  ANTES DE USAR:
+  1. Troque APPS_SCRIPT_URL abaixo pela URL do seu Apps Script (.../exec)
+  2. Renomeie este arquivo para "index.html" ao subir no GitHub
+  3. O Apps Script (AppPatrimonio_Code.gs) precisa estar com a versão mais
+     recente implantada (a que tem doGet(e) com "action" e doPost(e))
 -->
 <!DOCTYPE html>
 <html>
 <head>
-  <base target="_top">
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Patrimônio ESF Flor do Cerrado</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="icon-192.png">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Patrimônio ESF">
+  <meta name="theme-color" content="#2F5496">
   <script src="https://unpkg.com/@zxing/library@0.20.0/umd/index.min.js"></script>
   <style>
     :root {
       --azul: #2F5496;
-      --azul-claro: #E8EEF7;
       --verde: #2e7d32;
       --amarelo: #b8860b;
       --vermelho: #c0392b;
@@ -65,13 +75,12 @@
     button:disabled { opacity: .5; }
 
     #video-wrap { display: none; margin-bottom: 12px; }
-    #video-preview {
-      width: 100%; border-radius: 10px; background: #000;
-    }
+    #video-preview { width: 100%; border-radius: 10px; background: #000; }
 
     .manual-busca { display: flex; gap: 8px; margin-top: 10px; }
     .manual-busca input {
-      flex: 1; padding: 10px; border-radius: 8px; border: 1px solid #ccc; font-size: 14px;
+      flex: 1; padding: 10px; border-radius: 8px; border: 1px solid #ccc;
+      font-size: 16px; /* 16px+ evita zoom automático do Safari ao focar */
     }
     .manual-busca button { width: auto; padding: 10px 14px; }
 
@@ -86,7 +95,8 @@
 
     label { display: block; font-size: 12px; color: var(--cinza); margin: 12px 0 4px; font-weight: bold; }
     select, textarea, input[type=text] {
-      width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #ccc; font-size: 14px; font-family: inherit;
+      width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #ccc;
+      font-size: 16px; font-family: inherit;
     }
     textarea { min-height: 60px; resize: vertical; }
 
@@ -101,6 +111,16 @@
 
     .info-linha { font-size: 13px; color: var(--cinza); margin-top: 2px; }
     .rodape { text-align: center; font-size: 11px; color: #999; margin-top: 20px; }
+
+    .item-lista {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 10px 4px; border-bottom: 1px solid #eee; cursor: pointer;
+    }
+    .item-lista:last-child { border-bottom: none; }
+    .item-lista .nome { font-size: 14px; }
+    .item-lista .tag { font-size: 10px; padding: 2px 7px; border-radius: 10px; font-weight: bold; }
+    .tag-ok { background: #E2EFDA; color: var(--verde); }
+    .tag-pendente { background: #FFF2CC; color: var(--amarelo); }
   </style>
 </head>
 <body>
@@ -115,10 +135,39 @@
   <div id="tela-inicial" class="card">
     <button class="btn-primary" onclick="iniciarScanner()">📷 Escanear código de barras</button>
     <div class="manual-busca">
-      <input type="text" id="input-manual" placeholder="Aponte o leitor Bluetooth aqui ou digite o código" autofocus>
+      <input type="text" id="input-manual" placeholder="Aponte o leitor Bluetooth aqui ou digite o código">
       <button class="btn-secondary" onclick="buscarManual()">Buscar</button>
     </div>
+    <button class="btn-secondary" style="margin-top:10px;" onclick="abrirFiltroSala()">🏷️ Ver itens por sala</button>
+    <button class="btn-secondary" style="margin-top:10px;" onclick="abrirCadastroNovo()">➕ Cadastrar item novo (sem código ainda)</button>
     <div id="status-inicial" class="status-msg"></div>
+  </div>
+
+  <div id="tela-cadastro" class="card" style="display:none;">
+    <h2 style="font-size:16px;color:var(--azul);margin-top:0;">Cadastrar item novo</h2>
+    <label for="novo-descricao">Descrição do item</label>
+    <input type="text" id="novo-descricao" placeholder="Ex: Armário de aço 2 portas">
+    <label for="novo-local">Sala onde está</label>
+    <select id="novo-local"></select>
+    <label for="novo-situacao">Condição de uso</label>
+    <select id="novo-situacao">
+      <option>BOM</option>
+      <option>REGULAR</option>
+      <option>RUIM</option>
+    </select>
+    <label for="novo-obs">Observações</label>
+    <textarea id="novo-obs" placeholder="Opcional"></textarea>
+    <button class="btn-primary" style="margin-top:14px;" onclick="salvarNovoItem()">Cadastrar e gerar código</button>
+    <button class="btn-secondary" onclick="voltarInicio()">Cancelar</button>
+    <div id="status-cadastro" class="status-msg"></div>
+  </div>
+
+  <div id="tela-sala" class="card" style="display:none;">
+    <label for="select-sala">Escolha a sala</label>
+    <select id="select-sala"></select>
+    <button class="btn-primary" style="margin-top:10px;" onclick="listarItensDaSala()">Ver itens desta sala</button>
+    <button class="btn-secondary" onclick="voltarInicio()">Voltar</button>
+    <div id="lista-sala" style="margin-top:14px;"></div>
   </div>
 
   <div id="video-wrap" class="card">
@@ -172,36 +221,45 @@
 </div>
 
 <script>
+// ===================================================================
+// TROQUE AQUI pela URL do seu Apps Script (termina em /exec)
+// ===================================================================
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwXfObTqAjcubWjdzj97THmdRjekcYh_9GSkaikBENfYRy8A7OR6j2vEDijS7BnhqtLeA/exec';
+
 let codeReader = null;
 let itemAtual = null;
 let fotoBase64 = null;
 let fotoMime = null;
 
 // ---------- LEITOR BLUETOOTH HID ----------
-// O leitor Bluetooth funciona como um teclado: ele "digita" o código no campo
-// que estiver com foco e aperta Enter (se configurado como terminador CR/CR+LF).
-// Por isso mantemos o campo sempre em foco e escutamos a tecla Enter.
 const inputManual = document.getElementById('input-manual');
+let digitacaoIniciadaEm = null;
 inputManual.addEventListener('keydown', function (e) {
-  if (e.key === 'Enter') {
+  if (e.key === 'Enter' || e.keyCode === 13) {
     e.preventDefault();
     buscarManual();
   }
 });
-// Também dispara sozinho quando o código é colado (ex: copiado do leitor de
-// câmera nativo do celular), sem precisar tocar no botão Buscar.
-inputManual.addEventListener('input', function () {
+inputManual.addEventListener('input', function (e) {
   const v = inputManual.value.trim();
-  if (/^PAT-\d{3,6}$/i.test(v) || /^\d{4,10}$/.test(v)) {
-    setTimeout(buscarManual, 150);
+
+  // Marca quando o primeiro caractere foi digitado nesta "rodada"
+  if (v.length <= 1) {
+    digitacaoIniciadaEm = Date.now();
+  }
+
+  const isBulkInsert = e.inputType === 'insertFromPaste' || e.inputType === 'insertFromDrop';
+  const tempoDecorrido = digitacaoIniciadaEm ? (Date.now() - digitacaoIniciadaEm) : 9999;
+  // Leitor Bluetooth "digita" um código inteiro em poucas dezenas de milissegundos;
+  // uma pessoa digitando manualmente demora bem mais que isso entre teclas.
+  const pareceLeitor = isBulkInsert || tempoDecorrido < 400;
+
+  if (pareceLeitor && (/^PAT-\d{3,6}$/i.test(v) || /^\d{4,10}$/.test(v))) {
+    setTimeout(buscarManual, 100);
   }
 });
-function focarInputManual() {
-  setTimeout(function () { inputManual.focus(); }, 150);
-}
-focarInputManual();
 
-// ---------- SCANNER ----------
+// ---------- SCANNER (câmera) ----------
 async function iniciarScanner() {
   document.getElementById('video-wrap').style.display = 'block';
   document.getElementById('status-inicial').textContent = '';
@@ -213,9 +271,7 @@ async function iniciarScanner() {
   }
   codeReader = new ZXing.BrowserMultiFormatReader();
   try {
-    // Solicita a permissão explicitamente primeiro, com mensagem clara se for negada
     await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-
     const devices = await codeReader.listVideoInputDevices();
     if (!devices.length) throw new Error('Nenhuma câmera encontrada no aparelho.');
     let device = devices.find(d => /back|traseira|rear|environment/i.test(d.label)) || devices[devices.length - 1];
@@ -228,14 +284,13 @@ async function iniciarScanner() {
   } catch (e) {
     let msg = 'Não foi possível acessar a câmera: ' + e.message;
     if (e.name === 'NotAllowedError') {
-      msg = 'Permissão de câmera negada. Toque no cadeado ao lado do endereço, libere a câmera para este site e recarregue a página.';
+      msg = 'Permissão de câmera negada. Toque no ícone de cadeado/informações ao lado do endereço, libere a câmera para este site e recarregue.';
     } else if (e.name === 'NotFoundError') {
       msg = 'Nenhuma câmera foi encontrada neste aparelho.';
     } else if (e.name === 'NotReadableError') {
-      msg = 'A câmera está sendo usada por outro aplicativo. Feche outros apps que usem a câmera e tente de novo.';
+      msg = 'A câmera está sendo usada por outro aplicativo.';
     }
-    document.getElementById('status-inicial').innerHTML =
-      '<span class="status-msg erro">' + msg + '</span>';
+    document.getElementById('status-inicial').innerHTML = '<span class="status-msg erro">' + msg + '</span>';
     pararScanner();
   }
 }
@@ -252,29 +307,131 @@ function buscarManual() {
   buscar(val);
 }
 
-// ---------- BUSCA ----------
-function buscar(codigo) {
-  document.getElementById('status-inicial').innerHTML = 'Buscando ' + codigo + '...';
-  google.script.run
-    .withSuccessHandler(onBusca)
-    .withFailureHandler(onErroBusca)
-    .buscarPatrimonio(codigo);
+// ---------- FILTRO POR SALA ----------
+async function abrirFiltroSala() {
+  document.getElementById('tela-inicial').style.display = 'none';
+  document.getElementById('tela-sala').style.display = 'block';
+  document.getElementById('lista-sala').innerHTML = '';
+  try {
+    const resp = await apiGet({ action: 'setores' });
+    const setores = resp.ok ? resp.setores : [];
+    const sel = document.getElementById('select-sala');
+    sel.innerHTML = '';
+    setores.forEach(function (s) {
+      const opt = document.createElement('option');
+      opt.value = s; opt.textContent = s;
+      sel.appendChild(opt);
+    });
+  } catch (err) {
+    document.getElementById('lista-sala').innerHTML =
+      '<div class="status-msg erro">Erro ao carregar salas: ' + err.message + '</div>';
+  }
 }
 
-function onErroBusca(err) {
-  document.getElementById('status-inicial').innerHTML =
-    '<span class="status-msg erro">Erro: ' + err.message + '</span>';
+async function listarItensDaSala() {
+  const sala = document.getElementById('select-sala').value;
+  const div = document.getElementById('lista-sala');
+  div.innerHTML = '<div class="status-msg">Carregando...</div>';
+  try {
+    const resp = await apiGet({ action: 'listarSala', sala: sala });
+    if (!resp.ok) { div.innerHTML = '<div class="status-msg erro">' + resp.erro + '</div>'; return; }
+    if (!resp.itens.length) { div.innerHTML = '<div class="status-msg">Nenhum item cadastrado nessa sala.</div>'; return; }
+    div.innerHTML = '';
+    resp.itens.forEach(function (item) {
+      const row = document.createElement('div');
+      row.className = 'item-lista';
+      const conferido = item.CONFERIDO_NESTA_RODADA === 'SIM';
+      row.innerHTML =
+        '<span class="nome">' + item.DESCRICAO_ITEM + ' <span style="color:#999">(' + item.ID_INTERNO + ')</span></span>' +
+        '<span class="tag ' + (conferido ? 'tag-ok' : 'tag-pendente') + '">' + (conferido ? 'conferido' : 'pendente') + '</span>';
+      row.onclick = function () { buscar(item.ID_INTERNO); document.getElementById('tela-sala').style.display = 'none'; };
+      div.appendChild(row);
+    });
+  } catch (err) {
+    div.innerHTML = '<div class="status-msg erro">Erro: ' + err.message + '</div>';
+  }
 }
 
-function onBusca(resp) {
-  if (!resp.ok) {
-    document.getElementById('status-inicial').innerHTML =
-      '<span class="status-msg erro">' + resp.erro + '</span>';
+// ---------- CADASTRAR ITEM NOVO ----------
+async function abrirCadastroNovo() {
+  document.getElementById('tela-inicial').style.display = 'none';
+  document.getElementById('tela-cadastro').style.display = 'block';
+  document.getElementById('novo-descricao').value = '';
+  document.getElementById('novo-obs').value = '';
+  document.getElementById('status-cadastro').innerHTML = '';
+  try {
+    const resp = await apiGet({ action: 'setores' });
+    const setores = resp.ok ? resp.setores : [];
+    const sel = document.getElementById('novo-local');
+    sel.innerHTML = '';
+    setores.forEach(function (s) {
+      const opt = document.createElement('option');
+      opt.value = s; opt.textContent = s;
+      sel.appendChild(opt);
+    });
+  } catch (err) {}
+}
+
+async function salvarNovoItem() {
+  const descricao = document.getElementById('novo-descricao').value.trim();
+  if (!descricao) {
+    document.getElementById('status-cadastro').innerHTML = '<span class="status-msg erro">Descreve o item antes de salvar.</span>';
     return;
   }
-  itemAtual = resp.item;
-  mostrarFicha(itemAtual);
-  carregarSetores(itemAtual.LOCAL_ATUAL);
+  const payload = {
+    DESCRICAO_ITEM: descricao,
+    LOCAL_ATUAL: document.getElementById('novo-local').value,
+    SITUACAO: document.getElementById('novo-situacao').value,
+    OBSERVACOES: document.getElementById('novo-obs').value
+  };
+  document.getElementById('status-cadastro').innerHTML = 'Salvando...';
+  try {
+    const resp = await apiPost('cadastrar', payload);
+    if (!resp.ok) throw new Error(resp.erro || 'Falha ao cadastrar.');
+    document.getElementById('status-cadastro').innerHTML =
+      '<span class="status-msg ok">✅ Cadastrado como ' + resp.id_interno + '! Anota esse código pra imprimir a etiqueta depois.</span>';
+    setTimeout(voltarInicio, 2500);
+  } catch (err) {
+    document.getElementById('status-cadastro').innerHTML =
+      '<span class="status-msg erro">Erro: ' + err.message + '</span>';
+  }
+}
+
+// ---------- CHAMADAS AO APPS SCRIPT (via fetch, sem google.script.run) ----------
+async function apiGet(params) {
+  const url = APPS_SCRIPT_URL + '?' + new URLSearchParams(params).toString();
+  const resp = await fetch(url);
+  return resp.json();
+}
+
+async function apiPost(action, payload) {
+  // Content-Type text/plain evita que o navegador dispare um preflight CORS
+  // (o Apps Script não responde bem a esse preflight)
+  const resp = await fetch(APPS_SCRIPT_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify({ action: action, payload: payload })
+  });
+  return resp.json();
+}
+
+// ---------- BUSCA ----------
+async function buscar(codigo) {
+  document.getElementById('status-inicial').innerHTML = 'Buscando ' + codigo + '...';
+  try {
+    const resp = await apiGet({ action: 'buscar', codigo: codigo });
+    if (!resp.ok) {
+      document.getElementById('status-inicial').innerHTML =
+        '<span class="status-msg erro">' + resp.erro + '</span>';
+      return;
+    }
+    itemAtual = resp.item;
+    mostrarFicha(itemAtual);
+    carregarSetores(itemAtual.LOCAL_ATUAL);
+  } catch (err) {
+    document.getElementById('status-inicial').innerHTML =
+      '<span class="status-msg erro">Erro de conexão: ' + err.message + '</span>';
+  }
 }
 
 // ---------- FICHA ----------
@@ -303,8 +460,7 @@ function mostrarFicha(item) {
 
   fotoBase64 = null; fotoMime = null;
   document.getElementById('campo-foto').value = '';
-  const fotoNovaPreview = document.getElementById('foto-nova-preview');
-  fotoNovaPreview.style.display = 'none';
+  document.getElementById('foto-nova-preview').style.display = 'none';
 
   const fotoAtual = document.getElementById('foto-atual');
   if (item.FOTO_LINK) {
@@ -315,8 +471,10 @@ function mostrarFicha(item) {
   }
 }
 
-function carregarSetores(localAtual) {
-  google.script.run.withSuccessHandler(function (setores) {
+async function carregarSetores(localAtual) {
+  try {
+    const resp = await apiGet({ action: 'setores' });
+    const setores = resp.ok ? resp.setores : [];
     const sel = document.getElementById('campo-local');
     sel.innerHTML = '';
     setores.forEach(function (s) {
@@ -330,7 +488,9 @@ function carregarSetores(localAtual) {
       opt.value = localAtual; opt.textContent = localAtual; opt.selected = true;
       sel.appendChild(opt);
     }
-  }).listarSetores();
+  } catch (err) {
+    console.error('Erro ao carregar setores:', err);
+  }
 }
 
 function previewFoto(event) {
@@ -347,7 +507,7 @@ function previewFoto(event) {
   reader.readAsDataURL(file);
 }
 
-function salvar() {
+async function salvar() {
   if (!itemAtual) return;
   const localNovo = document.getElementById('campo-local-novo').value.trim();
   const local = localNovo || document.getElementById('campo-local').value;
@@ -363,25 +523,23 @@ function salvar() {
 
   document.getElementById('status-ficha').innerHTML = 'Salvando...';
 
-  google.script.run
-    .withSuccessHandler(function () {
-      if (fotoBase64) {
-        google.script.run
-          .withSuccessHandler(function () { finalizarSalvamento(); })
-          .withFailureHandler(function (err) {
-            document.getElementById('status-ficha').innerHTML =
-              '<span class="status-msg erro">Salvo, mas a foto falhou: ' + err.message + '</span>';
-          })
-          .salvarFoto({ _linha: itemAtual._linha, base64: fotoBase64, mimeType: fotoMime });
-      } else {
-        finalizarSalvamento();
+  try {
+    const respAtualizar = await apiPost('atualizar', payload);
+    if (!respAtualizar.ok) throw new Error(respAtualizar.erro || 'Falha ao salvar.');
+
+    if (fotoBase64) {
+      const respFoto = await apiPost('foto', { _linha: itemAtual._linha, base64: fotoBase64, mimeType: fotoMime });
+      if (!respFoto.ok) {
+        document.getElementById('status-ficha').innerHTML =
+          '<span class="status-msg erro">Salvo, mas a foto falhou: ' + respFoto.erro + '</span>';
+        return;
       }
-    })
-    .withFailureHandler(function (err) {
-      document.getElementById('status-ficha').innerHTML =
-        '<span class="status-msg erro">Erro ao salvar: ' + err.message + '</span>';
-    })
-    .atualizarPatrimonio(payload);
+    }
+    finalizarSalvamento();
+  } catch (err) {
+    document.getElementById('status-ficha').innerHTML =
+      '<span class="status-msg erro">Erro ao salvar: ' + err.message + '</span>';
+  }
 }
 
 function finalizarSalvamento() {
@@ -393,10 +551,15 @@ function finalizarSalvamento() {
 function voltarInicio() {
   itemAtual = null;
   document.getElementById('tela-ficha').style.display = 'none';
+  document.getElementById('tela-sala').style.display = 'none';
+  document.getElementById('tela-cadastro').style.display = 'none';
   document.getElementById('tela-inicial').style.display = 'block';
   document.getElementById('input-manual').value = '';
   document.getElementById('status-inicial').innerHTML = '';
-  focarInputManual();
+}
+
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js').catch(() => {});
 }
 </script>
 
