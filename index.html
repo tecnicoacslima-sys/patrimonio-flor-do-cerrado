@@ -188,16 +188,29 @@ let fotoMime = null;
 
 // ---------- LEITOR BLUETOOTH HID ----------
 const inputManual = document.getElementById('input-manual');
+let digitacaoIniciadaEm = null;
 inputManual.addEventListener('keydown', function (e) {
-  if (e.key === 'Enter') {
+  if (e.key === 'Enter' || e.keyCode === 13) {
     e.preventDefault();
     buscarManual();
   }
 });
-inputManual.addEventListener('input', function () {
+inputManual.addEventListener('input', function (e) {
   const v = inputManual.value.trim();
-  if (/^PAT-\d{3,6}$/i.test(v) || /^\d{4,10}$/.test(v)) {
-    setTimeout(buscarManual, 150);
+
+  // Marca quando o primeiro caractere foi digitado nesta "rodada"
+  if (v.length <= 1) {
+    digitacaoIniciadaEm = Date.now();
+  }
+
+  const isBulkInsert = e.inputType === 'insertFromPaste' || e.inputType === 'insertFromDrop';
+  const tempoDecorrido = digitacaoIniciadaEm ? (Date.now() - digitacaoIniciadaEm) : 9999;
+  // Leitor Bluetooth "digita" um código inteiro em poucas dezenas de milissegundos;
+  // uma pessoa digitando manualmente demora bem mais que isso entre teclas.
+  const pareceLeitor = isBulkInsert || tempoDecorrido < 400;
+
+  if (pareceLeitor && (/^PAT-\d{3,6}$/i.test(v) || /^\d{4,10}$/.test(v))) {
+    setTimeout(buscarManual, 100);
   }
 });
 
