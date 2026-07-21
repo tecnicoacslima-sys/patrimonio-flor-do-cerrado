@@ -1,0 +1,413 @@
+<!--
+  APP LEITOR DE PATRIMÔNIO — ESF FLOR DO CERRADO (versão hospedada / GitHub Pages)
+
+  Esta versão NÃO roda dentro do Apps Script — ela é uma página comum, hospedada
+  fora (ex: GitHub Pages), que conversa com o Apps Script por trás dos panos via
+  fetch(). Isso evita o iframe interno do Apps Script, que no iPhone bloqueia a
+  abertura do teclado nos campos de texto.
+
+  ANTES DE USAR:
+  1. Troque APPS_SCRIPT_URL abaixo pela URL do seu Apps Script (.../exec)
+  2. Renomeie este arquivo para "index.html" ao subir no GitHub
+  3. O Apps Script (AppPatrimonio_Code.gs) precisa estar com a versão mais
+     recente implantada (a que tem doGet(e) com "action" e doPost(e))
+-->
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Patrimônio ESF Flor do Cerrado</title>
+  <script src="https://unpkg.com/@zxing/library@0.20.0/umd/index.min.js"></script>
+  <style>
+    :root {
+      --azul: #2F5496;
+      --verde: #2e7d32;
+      --amarelo: #b8860b;
+      --vermelho: #c0392b;
+      --cinza: #666;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: Arial, Helvetica, sans-serif;
+      margin: 0; padding: 0;
+      background: #f4f6f9;
+      color: #222;
+    }
+    header {
+      background: var(--azul);
+      color: #fff;
+      padding: 14px 16px;
+      text-align: center;
+      position: sticky; top: 0; z-index: 10;
+    }
+    header h1 { font-size: 17px; margin: 0; }
+    header p { font-size: 12px; margin: 2px 0 0; opacity: .85; }
+
+    .container { padding: 16px; max-width: 480px; margin: 0 auto; }
+
+    .card {
+      background: #fff;
+      border-radius: 10px;
+      padding: 16px;
+      box-shadow: 0 1px 3px rgba(0,0,0,.12);
+      margin-bottom: 16px;
+    }
+
+    button {
+      font-family: inherit;
+      font-size: 15px;
+      border: none;
+      border-radius: 8px;
+      padding: 13px 16px;
+      cursor: pointer;
+      width: 100%;
+    }
+    .btn-primary { background: var(--azul); color: #fff; }
+    .btn-secondary { background: #eee; color: #333; margin-top: 8px; }
+    .btn-danger { background: var(--vermelho); color: #fff; }
+    button:disabled { opacity: .5; }
+
+    #video-wrap { display: none; margin-bottom: 12px; }
+    #video-preview { width: 100%; border-radius: 10px; background: #000; }
+
+    .manual-busca { display: flex; gap: 8px; margin-top: 10px; }
+    .manual-busca input {
+      flex: 1; padding: 10px; border-radius: 8px; border: 1px solid #ccc;
+      font-size: 16px; /* 16px+ evita zoom automático do Safari ao focar */
+    }
+    .manual-busca button { width: auto; padding: 10px 14px; }
+
+    .ficha h2 { font-size: 18px; margin: 0 0 4px; color: var(--azul); }
+    .badge {
+      display: inline-block; font-size: 11px; font-weight: bold;
+      padding: 3px 8px; border-radius: 20px; margin-bottom: 10px;
+    }
+    .badge-ok { background: #E2EFDA; color: var(--verde); }
+    .badge-pendente { background: #FFF2CC; color: var(--amarelo); }
+    .badge-duvidoso { background: #F8CBAD; color: var(--vermelho); }
+
+    label { display: block; font-size: 12px; color: var(--cinza); margin: 12px 0 4px; font-weight: bold; }
+    select, textarea, input[type=text] {
+      width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #ccc;
+      font-size: 16px; font-family: inherit;
+    }
+    textarea { min-height: 60px; resize: vertical; }
+
+    .foto-preview {
+      width: 100%; max-height: 220px; object-fit: contain;
+      border-radius: 8px; margin-top: 8px; background: #f0f0f0;
+    }
+
+    .status-msg { text-align: center; padding: 10px; font-size: 14px; }
+    .status-msg.erro { color: var(--vermelho); }
+    .status-msg.ok { color: var(--verde); font-weight: bold; }
+
+    .info-linha { font-size: 13px; color: var(--cinza); margin-top: 2px; }
+    .rodape { text-align: center; font-size: 11px; color: #999; margin-top: 20px; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>📋 Patrimônio ESF Flor do Cerrado</h1>
+  <p>Leitor de código PAT-XXXX</p>
+</header>
+
+<div class="container">
+
+  <div id="tela-inicial" class="card">
+    <button class="btn-primary" onclick="iniciarScanner()">📷 Escanear código de barras</button>
+    <div class="manual-busca">
+      <input type="text" id="input-manual" placeholder="Aponte o leitor Bluetooth aqui ou digite o código">
+      <button class="btn-secondary" onclick="buscarManual()">Buscar</button>
+    </div>
+    <div id="status-inicial" class="status-msg"></div>
+  </div>
+
+  <div id="video-wrap" class="card">
+    <video id="video-preview" autoplay muted playsinline></video>
+    <button class="btn-danger" onclick="pararScanner()">Cancelar leitura</button>
+  </div>
+
+  <div id="tela-ficha" class="card ficha" style="display:none;">
+    <span id="badge-status" class="badge"></span>
+    <h2 id="ficha-descricao">—</h2>
+    <div class="info-linha">ID interno: <b id="ficha-id"></b></div>
+    <div class="info-linha">Setor original da lista: <b id="ficha-setor-orig"></b></div>
+    <div class="info-linha">Valor de aquisição: <b id="ficha-valor"></b></div>
+
+    <label for="campo-codigo-prefeitura">Código da prefeitura (etiqueta oficial, quando chegar)</label>
+    <input type="text" id="campo-codigo-prefeitura" placeholder="Ex: 0006249 (mantém os zeros à esquerda)">
+
+    <img id="foto-atual" class="foto-preview" style="display:none;">
+
+    <label for="campo-local">Local atual (consultório/sala)</label>
+    <select id="campo-local"></select>
+    <input type="text" id="campo-local-novo" placeholder="Novo local (se não estiver na lista)" style="margin-top:6px;">
+
+    <label for="campo-situacao">Condição de uso</label>
+    <select id="campo-situacao">
+      <option>BOM</option>
+      <option>REGULAR</option>
+      <option>RUIM</option>
+      <option>QUEBRADO</option>
+      <option>RECOLHER PARA BAIXA</option>
+      <option>INSERVÍVEL</option>
+    </select>
+
+    <label for="campo-idade">Data de aquisição / idade aproximada (opcional)</label>
+    <input type="text" id="campo-idade" placeholder="Ex: 2019 ou 5 anos aprox.">
+
+    <label for="campo-obs">Observações</label>
+    <textarea id="campo-obs" placeholder="Ex: bem substituído sem baixa, aguardando etiqueta nova, etc."></textarea>
+
+    <label for="campo-foto">Tirar / anexar foto</label>
+    <input type="file" id="campo-foto" accept="image/*" capture="environment" onchange="previewFoto(event)">
+    <img id="foto-nova-preview" class="foto-preview" style="display:none;">
+
+    <button class="btn-primary" style="margin-top:16px;" onclick="salvar()">✅ Salvar e marcar como conferido</button>
+    <button class="btn-secondary" onclick="voltarInicio()">Cancelar / escanear outro</button>
+
+    <div id="status-ficha" class="status-msg"></div>
+  </div>
+
+  <div class="rodape">ESF Flor do Cerrado — Nova Mutum/MT</div>
+</div>
+
+<script>
+// ===================================================================
+// TROQUE AQUI pela URL do seu Apps Script (termina em /exec)
+// ===================================================================
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwXfObTqAjcubWjdzj97THmdRjekcYh_9GSkaikBENfYRy8A7OR6j2vEDijS7BnhqtLeA/exec';
+
+let codeReader = null;
+let itemAtual = null;
+let fotoBase64 = null;
+let fotoMime = null;
+
+// ---------- LEITOR BLUETOOTH HID ----------
+const inputManual = document.getElementById('input-manual');
+inputManual.addEventListener('keydown', function (e) {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    buscarManual();
+  }
+});
+inputManual.addEventListener('input', function () {
+  const v = inputManual.value.trim();
+  if (/^PAT-\d{3,6}$/i.test(v) || /^\d{4,10}$/.test(v)) {
+    setTimeout(buscarManual, 150);
+  }
+});
+
+// ---------- SCANNER (câmera) ----------
+async function iniciarScanner() {
+  document.getElementById('video-wrap').style.display = 'block';
+  document.getElementById('status-inicial').textContent = '';
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    document.getElementById('status-inicial').innerHTML =
+      '<span class="status-msg erro">Este navegador não permite acesso à câmera nesta página. Use a busca manual abaixo.</span>';
+    pararScanner();
+    return;
+  }
+  codeReader = new ZXing.BrowserMultiFormatReader();
+  try {
+    await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+    const devices = await codeReader.listVideoInputDevices();
+    if (!devices.length) throw new Error('Nenhuma câmera encontrada no aparelho.');
+    let device = devices.find(d => /back|traseira|rear|environment/i.test(d.label)) || devices[devices.length - 1];
+    codeReader.decodeFromVideoDevice(device.deviceId, 'video-preview', (result, err) => {
+      if (result) {
+        pararScanner();
+        buscar(result.getText());
+      }
+    });
+  } catch (e) {
+    let msg = 'Não foi possível acessar a câmera: ' + e.message;
+    if (e.name === 'NotAllowedError') {
+      msg = 'Permissão de câmera negada. Toque no ícone de cadeado/informações ao lado do endereço, libere a câmera para este site e recarregue.';
+    } else if (e.name === 'NotFoundError') {
+      msg = 'Nenhuma câmera foi encontrada neste aparelho.';
+    } else if (e.name === 'NotReadableError') {
+      msg = 'A câmera está sendo usada por outro aplicativo.';
+    }
+    document.getElementById('status-inicial').innerHTML = '<span class="status-msg erro">' + msg + '</span>';
+    pararScanner();
+  }
+}
+
+function pararScanner() {
+  if (codeReader) { try { codeReader.reset(); } catch (e) {} }
+  document.getElementById('video-wrap').style.display = 'none';
+}
+
+function buscarManual() {
+  const val = document.getElementById('input-manual').value.trim();
+  if (!val) return;
+  document.getElementById('input-manual').value = '';
+  buscar(val);
+}
+
+// ---------- CHAMADAS AO APPS SCRIPT (via fetch, sem google.script.run) ----------
+async function apiGet(params) {
+  const url = APPS_SCRIPT_URL + '?' + new URLSearchParams(params).toString();
+  const resp = await fetch(url);
+  return resp.json();
+}
+
+async function apiPost(action, payload) {
+  // Content-Type text/plain evita que o navegador dispare um preflight CORS
+  // (o Apps Script não responde bem a esse preflight)
+  const resp = await fetch(APPS_SCRIPT_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify({ action: action, payload: payload })
+  });
+  return resp.json();
+}
+
+// ---------- BUSCA ----------
+async function buscar(codigo) {
+  document.getElementById('status-inicial').innerHTML = 'Buscando ' + codigo + '...';
+  try {
+    const resp = await apiGet({ action: 'buscar', codigo: codigo });
+    if (!resp.ok) {
+      document.getElementById('status-inicial').innerHTML =
+        '<span class="status-msg erro">' + resp.erro + '</span>';
+      return;
+    }
+    itemAtual = resp.item;
+    mostrarFicha(itemAtual);
+    carregarSetores(itemAtual.LOCAL_ATUAL);
+  } catch (err) {
+    document.getElementById('status-inicial').innerHTML =
+      '<span class="status-msg erro">Erro de conexão: ' + err.message + '</span>';
+  }
+}
+
+// ---------- FICHA ----------
+function mostrarFicha(item) {
+  document.getElementById('tela-inicial').style.display = 'none';
+  document.getElementById('tela-ficha').style.display = 'block';
+  document.getElementById('status-ficha').innerHTML = '';
+
+  document.getElementById('ficha-descricao').textContent = item.DESCRICAO_ITEM || '(sem descrição)';
+  document.getElementById('ficha-id').textContent = item.ID_INTERNO || '—';
+  document.getElementById('ficha-setor-orig').textContent = item.SETOR_LISTA_ORIGINAL || '—';
+  document.getElementById('campo-codigo-prefeitura').value = item.CODIGO_PREFEITURA || '';
+  const valorTxt = item.VALOR_AQUISICAO ? ('R$ ' + item.VALOR_AQUISICAO + (item.DATA_AQUISICAO_IDADE ? ' (' + item.DATA_AQUISICAO_IDADE + ')' : '')) : 'não informado';
+  document.getElementById('ficha-valor').textContent = valorTxt;
+
+  const badge = document.getElementById('badge-status');
+  badge.textContent = item.STATUS_ETIQUETA || '';
+  badge.className = 'badge ' +
+    (item.STATUS_ETIQUETA === 'COM CÓDIGO PREFEITURA' ? 'badge-ok' :
+     /DUVIDOSO/.test(item.STATUS_ETIQUETA) ? 'badge-duvidoso' : 'badge-pendente');
+
+  document.getElementById('campo-situacao').value = item.SITUACAO || 'BOM';
+  document.getElementById('campo-idade').value = item.DATA_AQUISICAO_IDADE || '';
+  document.getElementById('campo-obs').value = item.OBSERVACOES || '';
+  document.getElementById('campo-local-novo').value = '';
+
+  fotoBase64 = null; fotoMime = null;
+  document.getElementById('campo-foto').value = '';
+  document.getElementById('foto-nova-preview').style.display = 'none';
+
+  const fotoAtual = document.getElementById('foto-atual');
+  if (item.FOTO_LINK) {
+    fotoAtual.src = item.FOTO_LINK;
+    fotoAtual.style.display = 'block';
+  } else {
+    fotoAtual.style.display = 'none';
+  }
+}
+
+async function carregarSetores(localAtual) {
+  try {
+    const resp = await apiGet({ action: 'setores' });
+    const setores = resp.ok ? resp.setores : [];
+    const sel = document.getElementById('campo-local');
+    sel.innerHTML = '';
+    setores.forEach(function (s) {
+      const opt = document.createElement('option');
+      opt.value = s; opt.textContent = s;
+      if (s === localAtual) opt.selected = true;
+      sel.appendChild(opt);
+    });
+    if (!setores.includes(localAtual) && localAtual) {
+      const opt = document.createElement('option');
+      opt.value = localAtual; opt.textContent = localAtual; opt.selected = true;
+      sel.appendChild(opt);
+    }
+  } catch (err) {
+    console.error('Erro ao carregar setores:', err);
+  }
+}
+
+function previewFoto(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  fotoMime = file.type;
+  const reader = new FileReader();
+  reader.onload = function (e) {
+    fotoBase64 = e.target.result.split(',')[1];
+    const img = document.getElementById('foto-nova-preview');
+    img.src = e.target.result;
+    img.style.display = 'block';
+  };
+  reader.readAsDataURL(file);
+}
+
+async function salvar() {
+  if (!itemAtual) return;
+  const localNovo = document.getElementById('campo-local-novo').value.trim();
+  const local = localNovo || document.getElementById('campo-local').value;
+
+  const payload = {
+    _linha: itemAtual._linha,
+    LOCAL_ATUAL: local,
+    SITUACAO: document.getElementById('campo-situacao').value,
+    OBSERVACOES: document.getElementById('campo-obs').value,
+    DATA_AQUISICAO_IDADE: document.getElementById('campo-idade').value,
+    CODIGO_PREFEITURA: document.getElementById('campo-codigo-prefeitura').value.trim()
+  };
+
+  document.getElementById('status-ficha').innerHTML = 'Salvando...';
+
+  try {
+    const respAtualizar = await apiPost('atualizar', payload);
+    if (!respAtualizar.ok) throw new Error(respAtualizar.erro || 'Falha ao salvar.');
+
+    if (fotoBase64) {
+      const respFoto = await apiPost('foto', { _linha: itemAtual._linha, base64: fotoBase64, mimeType: fotoMime });
+      if (!respFoto.ok) {
+        document.getElementById('status-ficha').innerHTML =
+          '<span class="status-msg erro">Salvo, mas a foto falhou: ' + respFoto.erro + '</span>';
+        return;
+      }
+    }
+    finalizarSalvamento();
+  } catch (err) {
+    document.getElementById('status-ficha').innerHTML =
+      '<span class="status-msg erro">Erro ao salvar: ' + err.message + '</span>';
+  }
+}
+
+function finalizarSalvamento() {
+  document.getElementById('status-ficha').innerHTML =
+    '<span class="status-msg ok">✅ Conferido e salvo com sucesso!</span>';
+  setTimeout(voltarInicio, 1200);
+}
+
+function voltarInicio() {
+  itemAtual = null;
+  document.getElementById('tela-ficha').style.display = 'none';
+  document.getElementById('tela-inicial').style.display = 'block';
+  document.getElementById('input-manual').value = '';
+  document.getElementById('status-inicial').innerHTML = '';
+}
+</script>
+
+</body>
+</html>
