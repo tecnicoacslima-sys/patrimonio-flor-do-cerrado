@@ -1,27 +1,23 @@
 <!--
-  APP LEITOR DE PATRIMÔNIO — ESF FLOR DO CERRADO (versão hospedada / GitHub Pages)
+  APP LEITOR DE PATRIMÔNIO — ESF FLOR DO CERRADO
+  Arquivo HTML para colar no Apps Script como um arquivo chamado "Index"
+  (Arquivo > Novo > Arquivo HTML > nomear exatamente "Index")
 
-  Esta versão NÃO roda dentro do Apps Script — ela é uma página comum, hospedada
-  fora (ex: GitHub Pages), que conversa com o Apps Script por trás dos panos via
-  fetch(). Isso evita o iframe interno do Apps Script, que no iPhone bloqueia a
-  abertura do teclado nos campos de texto.
-
-  ANTES DE USAR:
-  1. Troque APPS_SCRIPT_URL abaixo pela URL do seu Apps Script (.../exec)
-  2. Renomeie este arquivo para "index.html" ao subir no GitHub
-  3. O Apps Script (AppPatrimonio_Code.gs) precisa estar com a versão mais
-     recente implantada (a que tem doGet(e) com "action" e doPost(e))
+  Funciona junto com AppPatrimonio_Code.gs no mesmo projeto do Apps Script.
+  NÃO abra este arquivo direto no navegador fora do Apps Script — ele depende
+  de google.script.run, que só existe dentro do ambiente do Apps Script.
 -->
 <!DOCTYPE html>
 <html>
 <head>
+  <base target="_top">
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Patrimônio ESF Flor do Cerrado</title>
   <script src="https://unpkg.com/@zxing/library@0.20.0/umd/index.min.js"></script>
   <style>
     :root {
       --azul: #2F5496;
+      --azul-claro: #E8EEF7;
       --verde: #2e7d32;
       --amarelo: #b8860b;
       --vermelho: #c0392b;
@@ -69,12 +65,13 @@
     button:disabled { opacity: .5; }
 
     #video-wrap { display: none; margin-bottom: 12px; }
-    #video-preview { width: 100%; border-radius: 10px; background: #000; }
+    #video-preview {
+      width: 100%; border-radius: 10px; background: #000;
+    }
 
     .manual-busca { display: flex; gap: 8px; margin-top: 10px; }
     .manual-busca input {
-      flex: 1; padding: 10px; border-radius: 8px; border: 1px solid #ccc;
-      font-size: 16px; /* 16px+ evita zoom automático do Safari ao focar */
+      flex: 1; padding: 10px; border-radius: 8px; border: 1px solid #ccc; font-size: 14px;
     }
     .manual-busca button { width: auto; padding: 10px 14px; }
 
@@ -89,8 +86,7 @@
 
     label { display: block; font-size: 12px; color: var(--cinza); margin: 12px 0 4px; font-weight: bold; }
     select, textarea, input[type=text] {
-      width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #ccc;
-      font-size: 16px; font-family: inherit;
+      width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #ccc; font-size: 14px; font-family: inherit;
     }
     textarea { min-height: 60px; resize: vertical; }
 
@@ -119,7 +115,7 @@
   <div id="tela-inicial" class="card">
     <button class="btn-primary" onclick="iniciarScanner()">📷 Escanear código de barras</button>
     <div class="manual-busca">
-      <input type="text" id="input-manual" placeholder="Aponte o leitor Bluetooth aqui ou digite o código">
+      <input type="text" id="input-manual" placeholder="Aponte o leitor Bluetooth aqui ou digite o código" autofocus>
       <button class="btn-secondary" onclick="buscarManual()">Buscar</button>
     </div>
     <div id="status-inicial" class="status-msg"></div>
@@ -176,45 +172,36 @@
 </div>
 
 <script>
-// ===================================================================
-// TROQUE AQUI pela URL do seu Apps Script (termina em /exec)
-// ===================================================================
-const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwXfObTqAjcubWjdzj97THmdRjekcYh_9GSkaikBENfYRy8A7OR6j2vEDijS7BnhqtLeA/exec';
-
 let codeReader = null;
 let itemAtual = null;
 let fotoBase64 = null;
 let fotoMime = null;
 
 // ---------- LEITOR BLUETOOTH HID ----------
+// O leitor Bluetooth funciona como um teclado: ele "digita" o código no campo
+// que estiver com foco e aperta Enter (se configurado como terminador CR/CR+LF).
+// Por isso mantemos o campo sempre em foco e escutamos a tecla Enter.
 const inputManual = document.getElementById('input-manual');
-let digitacaoIniciadaEm = null;
 inputManual.addEventListener('keydown', function (e) {
-  if (e.key === 'Enter' || e.keyCode === 13) {
+  if (e.key === 'Enter') {
     e.preventDefault();
     buscarManual();
   }
 });
-inputManual.addEventListener('input', function (e) {
+// Também dispara sozinho quando o código é colado (ex: copiado do leitor de
+// câmera nativo do celular), sem precisar tocar no botão Buscar.
+inputManual.addEventListener('input', function () {
   const v = inputManual.value.trim();
-
-  // Marca quando o primeiro caractere foi digitado nesta "rodada"
-  if (v.length <= 1) {
-    digitacaoIniciadaEm = Date.now();
-  }
-
-  const isBulkInsert = e.inputType === 'insertFromPaste' || e.inputType === 'insertFromDrop';
-  const tempoDecorrido = digitacaoIniciadaEm ? (Date.now() - digitacaoIniciadaEm) : 9999;
-  // Leitor Bluetooth "digita" um código inteiro em poucas dezenas de milissegundos;
-  // uma pessoa digitando manualmente demora bem mais que isso entre teclas.
-  const pareceLeitor = isBulkInsert || tempoDecorrido < 400;
-
-  if (pareceLeitor && (/^PAT-\d{3,6}$/i.test(v) || /^\d{4,10}$/.test(v))) {
-    setTimeout(buscarManual, 100);
+  if (/^PAT-\d{3,6}$/i.test(v) || /^\d{4,10}$/.test(v)) {
+    setTimeout(buscarManual, 150);
   }
 });
+function focarInputManual() {
+  setTimeout(function () { inputManual.focus(); }, 150);
+}
+focarInputManual();
 
-// ---------- SCANNER (câmera) ----------
+// ---------- SCANNER ----------
 async function iniciarScanner() {
   document.getElementById('video-wrap').style.display = 'block';
   document.getElementById('status-inicial').textContent = '';
@@ -226,7 +213,9 @@ async function iniciarScanner() {
   }
   codeReader = new ZXing.BrowserMultiFormatReader();
   try {
+    // Solicita a permissão explicitamente primeiro, com mensagem clara se for negada
     await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+
     const devices = await codeReader.listVideoInputDevices();
     if (!devices.length) throw new Error('Nenhuma câmera encontrada no aparelho.');
     let device = devices.find(d => /back|traseira|rear|environment/i.test(d.label)) || devices[devices.length - 1];
@@ -239,13 +228,14 @@ async function iniciarScanner() {
   } catch (e) {
     let msg = 'Não foi possível acessar a câmera: ' + e.message;
     if (e.name === 'NotAllowedError') {
-      msg = 'Permissão de câmera negada. Toque no ícone de cadeado/informações ao lado do endereço, libere a câmera para este site e recarregue.';
+      msg = 'Permissão de câmera negada. Toque no cadeado ao lado do endereço, libere a câmera para este site e recarregue a página.';
     } else if (e.name === 'NotFoundError') {
       msg = 'Nenhuma câmera foi encontrada neste aparelho.';
     } else if (e.name === 'NotReadableError') {
-      msg = 'A câmera está sendo usada por outro aplicativo.';
+      msg = 'A câmera está sendo usada por outro aplicativo. Feche outros apps que usem a câmera e tente de novo.';
     }
-    document.getElementById('status-inicial').innerHTML = '<span class="status-msg erro">' + msg + '</span>';
+    document.getElementById('status-inicial').innerHTML =
+      '<span class="status-msg erro">' + msg + '</span>';
     pararScanner();
   }
 }
@@ -262,41 +252,29 @@ function buscarManual() {
   buscar(val);
 }
 
-// ---------- CHAMADAS AO APPS SCRIPT (via fetch, sem google.script.run) ----------
-async function apiGet(params) {
-  const url = APPS_SCRIPT_URL + '?' + new URLSearchParams(params).toString();
-  const resp = await fetch(url);
-  return resp.json();
-}
-
-async function apiPost(action, payload) {
-  // Content-Type text/plain evita que o navegador dispare um preflight CORS
-  // (o Apps Script não responde bem a esse preflight)
-  const resp = await fetch(APPS_SCRIPT_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify({ action: action, payload: payload })
-  });
-  return resp.json();
-}
-
 // ---------- BUSCA ----------
-async function buscar(codigo) {
+function buscar(codigo) {
   document.getElementById('status-inicial').innerHTML = 'Buscando ' + codigo + '...';
-  try {
-    const resp = await apiGet({ action: 'buscar', codigo: codigo });
-    if (!resp.ok) {
-      document.getElementById('status-inicial').innerHTML =
-        '<span class="status-msg erro">' + resp.erro + '</span>';
-      return;
-    }
-    itemAtual = resp.item;
-    mostrarFicha(itemAtual);
-    carregarSetores(itemAtual.LOCAL_ATUAL);
-  } catch (err) {
+  google.script.run
+    .withSuccessHandler(onBusca)
+    .withFailureHandler(onErroBusca)
+    .buscarPatrimonio(codigo);
+}
+
+function onErroBusca(err) {
+  document.getElementById('status-inicial').innerHTML =
+    '<span class="status-msg erro">Erro: ' + err.message + '</span>';
+}
+
+function onBusca(resp) {
+  if (!resp.ok) {
     document.getElementById('status-inicial').innerHTML =
-      '<span class="status-msg erro">Erro de conexão: ' + err.message + '</span>';
+      '<span class="status-msg erro">' + resp.erro + '</span>';
+    return;
   }
+  itemAtual = resp.item;
+  mostrarFicha(itemAtual);
+  carregarSetores(itemAtual.LOCAL_ATUAL);
 }
 
 // ---------- FICHA ----------
@@ -325,7 +303,8 @@ function mostrarFicha(item) {
 
   fotoBase64 = null; fotoMime = null;
   document.getElementById('campo-foto').value = '';
-  document.getElementById('foto-nova-preview').style.display = 'none';
+  const fotoNovaPreview = document.getElementById('foto-nova-preview');
+  fotoNovaPreview.style.display = 'none';
 
   const fotoAtual = document.getElementById('foto-atual');
   if (item.FOTO_LINK) {
@@ -336,10 +315,8 @@ function mostrarFicha(item) {
   }
 }
 
-async function carregarSetores(localAtual) {
-  try {
-    const resp = await apiGet({ action: 'setores' });
-    const setores = resp.ok ? resp.setores : [];
+function carregarSetores(localAtual) {
+  google.script.run.withSuccessHandler(function (setores) {
     const sel = document.getElementById('campo-local');
     sel.innerHTML = '';
     setores.forEach(function (s) {
@@ -353,9 +330,7 @@ async function carregarSetores(localAtual) {
       opt.value = localAtual; opt.textContent = localAtual; opt.selected = true;
       sel.appendChild(opt);
     }
-  } catch (err) {
-    console.error('Erro ao carregar setores:', err);
-  }
+  }).listarSetores();
 }
 
 function previewFoto(event) {
@@ -372,7 +347,7 @@ function previewFoto(event) {
   reader.readAsDataURL(file);
 }
 
-async function salvar() {
+function salvar() {
   if (!itemAtual) return;
   const localNovo = document.getElementById('campo-local-novo').value.trim();
   const local = localNovo || document.getElementById('campo-local').value;
@@ -388,23 +363,25 @@ async function salvar() {
 
   document.getElementById('status-ficha').innerHTML = 'Salvando...';
 
-  try {
-    const respAtualizar = await apiPost('atualizar', payload);
-    if (!respAtualizar.ok) throw new Error(respAtualizar.erro || 'Falha ao salvar.');
-
-    if (fotoBase64) {
-      const respFoto = await apiPost('foto', { _linha: itemAtual._linha, base64: fotoBase64, mimeType: fotoMime });
-      if (!respFoto.ok) {
-        document.getElementById('status-ficha').innerHTML =
-          '<span class="status-msg erro">Salvo, mas a foto falhou: ' + respFoto.erro + '</span>';
-        return;
+  google.script.run
+    .withSuccessHandler(function () {
+      if (fotoBase64) {
+        google.script.run
+          .withSuccessHandler(function () { finalizarSalvamento(); })
+          .withFailureHandler(function (err) {
+            document.getElementById('status-ficha').innerHTML =
+              '<span class="status-msg erro">Salvo, mas a foto falhou: ' + err.message + '</span>';
+          })
+          .salvarFoto({ _linha: itemAtual._linha, base64: fotoBase64, mimeType: fotoMime });
+      } else {
+        finalizarSalvamento();
       }
-    }
-    finalizarSalvamento();
-  } catch (err) {
-    document.getElementById('status-ficha').innerHTML =
-      '<span class="status-msg erro">Erro ao salvar: ' + err.message + '</span>';
-  }
+    })
+    .withFailureHandler(function (err) {
+      document.getElementById('status-ficha').innerHTML =
+        '<span class="status-msg erro">Erro ao salvar: ' + err.message + '</span>';
+    })
+    .atualizarPatrimonio(payload);
 }
 
 function finalizarSalvamento() {
@@ -419,6 +396,7 @@ function voltarInicio() {
   document.getElementById('tela-inicial').style.display = 'block';
   document.getElementById('input-manual').value = '';
   document.getElementById('status-inicial').innerHTML = '';
+  focarInputManual();
 }
 </script>
 
