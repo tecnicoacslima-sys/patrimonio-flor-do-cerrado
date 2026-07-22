@@ -225,6 +225,8 @@
 // TROQUE AQUI pela URL do seu Apps Script (termina em /exec)
 // ===================================================================
 const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwXfObTqAjcubWjdzj97THmdRjekcYh_9GSkaikBENfYRy8A7OR6j2vEDijS7BnhqtLeA/exec';
+// Precisa ser IDÊNTICA à ACCESS_KEY do Código.gs, senão todo pedido é recusado.
+const ACCESS_KEY = 'SDAmAKO429dmYN-x2BUKZiZjglGZ_iL5';
 
 let codeReader = null;
 let itemAtual = null;
@@ -399,7 +401,7 @@ async function salvarNovoItem() {
 
 // ---------- CHAMADAS AO APPS SCRIPT (via fetch, sem google.script.run) ----------
 async function apiGet(params) {
-  const url = APPS_SCRIPT_URL + '?' + new URLSearchParams(params).toString();
+  const url = APPS_SCRIPT_URL + '?' + new URLSearchParams({ chave: ACCESS_KEY, ...params }).toString();
   const resp = await fetch(url);
   return resp.json();
 }
@@ -410,7 +412,7 @@ async function apiPost(action, payload) {
   const resp = await fetch(APPS_SCRIPT_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify({ action: action, payload: payload })
+    body: JSON.stringify({ chave: ACCESS_KEY, action: action, payload: payload })
   });
   return resp.json();
 }
