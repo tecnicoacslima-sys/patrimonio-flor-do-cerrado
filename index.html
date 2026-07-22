@@ -121,6 +121,14 @@
     .item-lista .tag { font-size: 10px; padding: 2px 7px; border-radius: 10px; font-weight: bold; }
     .tag-ok { background: #E2EFDA; color: var(--verde); }
     .tag-pendente { background: #FFF2CC; color: var(--amarelo); }
+
+    .barra-fundo { background: #eee; border-radius: 8px; height: 10px; overflow: hidden; margin-top: 4px; }
+    .barra-preenchida { background: var(--verde); height: 100%; border-radius: 8px; }
+    .linha-progresso-sala { padding: 8px 4px; border-bottom: 1px solid #eee; }
+    .linha-progresso-sala .topo { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 3px; }
+    .resumo-numero { font-size: 32px; font-weight: bold; color: var(--azul); }
+    .resumo-caixa { display: flex; justify-content: space-around; text-align: center; margin-bottom: 10px; }
+    .resumo-label { font-size: 11px; color: var(--cinza); }
   </style>
 </head>
 <body>
@@ -140,7 +148,15 @@
     </div>
     <button class="btn-secondary" style="margin-top:10px;" onclick="abrirFiltroSala()">🏷️ Ver itens por sala</button>
     <button class="btn-secondary" style="margin-top:10px;" onclick="abrirCadastroNovo()">➕ Cadastrar item novo (sem código ainda)</button>
+    <button class="btn-secondary" style="margin-top:10px;" onclick="abrirProgresso()">📊 Ver progresso da conferência</button>
     <div id="status-inicial" class="status-msg"></div>
+  </div>
+
+  <div id="tela-progresso" class="card" style="display:none;">
+    <h2 style="font-size:16px;color:var(--azul);margin-top:0;">Progresso da conferência</h2>
+    <div id="resumo-progresso" style="margin-bottom:14px;"></div>
+    <div id="lista-progresso"></div>
+    <button class="btn-secondary" style="margin-top:14px;" onclick="voltarInicio()">Voltar</button>
   </div>
 
   <div id="tela-cadastro" class="card" style="display:none;">
@@ -370,6 +386,43 @@ async function gerarRelatorio() {
   }
 }
 
+// ---------- PAINEL DE PROGRESSO ----------
+async function abrirProgresso() {
+  document.getElementById('tela-inicial').style.display = 'none';
+  document.getElementById('tela-progresso').style.display = 'block';
+  document.getElementById('resumo-progresso').innerHTML = '<div class="status-msg">Carregando...</div>';
+  document.getElementById('lista-progresso').innerHTML = '';
+  try {
+    const resp = await apiGet({ action: 'progresso' });
+    if (!resp.ok) throw new Error(resp.erro || 'Falha ao carregar progresso.');
+    const p = resp.progresso;
+    const pct = p.total ? Math.round((p.conferidos / p.total) * 100) : 0;
+
+    document.getElementById('resumo-progresso').innerHTML =
+      '<div class="resumo-caixa">' +
+      '<div><div class="resumo-numero">' + p.total + '</div><div class="resumo-label">TOTAL</div></div>' +
+      '<div><div class="resumo-numero" style="color:var(--verde)">' + p.conferidos + '</div><div class="resumo-label">CONFERIDOS</div></div>' +
+      '<div><div class="resumo-numero" style="color:var(--amarelo)">' + p.pendentes + '</div><div class="resumo-label">PENDENTES</div></div>' +
+      '</div>' +
+      '<div class="barra-fundo"><div class="barra-preenchida" style="width:' + pct + '%"></div></div>' +
+      '<div style="text-align:center;font-size:12px;color:var(--cinza);margin-top:4px;">' + pct + '% conferido no geral</div>';
+
+    const div = document.getElementById('lista-progresso');
+    p.porSala.forEach(function (s) {
+      const pctSala = s.total ? Math.round((s.conferidos / s.total) * 100) : 0;
+      const row = document.createElement('div');
+      row.className = 'linha-progresso-sala';
+      row.innerHTML =
+        '<div class="topo"><span>' + s.sala + '</span><span>' + s.conferidos + '/' + s.total + '</span></div>' +
+        '<div class="barra-fundo"><div class="barra-preenchida" style="width:' + pctSala + '%"></div></div>';
+      div.appendChild(row);
+    });
+  } catch (err) {
+    document.getElementById('resumo-progresso').innerHTML =
+      '<div class="status-msg erro">Erro: ' + err.message + '</div>';
+  }
+}
+
 // ---------- CADASTRAR ITEM NOVO ----------
 async function abrirCadastroNovo() {
   document.getElementById('tela-inicial').style.display = 'none';
@@ -571,6 +624,7 @@ function voltarInicio() {
   document.getElementById('tela-ficha').style.display = 'none';
   document.getElementById('tela-sala').style.display = 'none';
   document.getElementById('tela-cadastro').style.display = 'none';
+  document.getElementById('tela-progresso').style.display = 'none';
   document.getElementById('tela-inicial').style.display = 'block';
   document.getElementById('input-manual').value = '';
   document.getElementById('status-inicial').innerHTML = '';
