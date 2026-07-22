@@ -166,7 +166,9 @@
     <label for="select-sala">Escolha a sala</label>
     <select id="select-sala"></select>
     <button class="btn-primary" style="margin-top:10px;" onclick="listarItensDaSala()">Ver itens desta sala</button>
+    <button class="btn-secondary" onclick="gerarRelatorio()">📄 Gerar relatório PDF desta sala</button>
     <button class="btn-secondary" onclick="voltarInicio()">Voltar</button>
+    <div id="status-relatorio" class="status-msg"></div>
     <div id="lista-sala" style="margin-top:14px;"></div>
   </div>
 
@@ -314,6 +316,7 @@ async function abrirFiltroSala() {
   document.getElementById('tela-inicial').style.display = 'none';
   document.getElementById('tela-sala').style.display = 'block';
   document.getElementById('lista-sala').innerHTML = '';
+  document.getElementById('status-relatorio').innerHTML = '';
   try {
     const resp = await apiGet({ action: 'setores' });
     const setores = resp.ok ? resp.setores : [];
@@ -351,6 +354,19 @@ async function listarItensDaSala() {
     });
   } catch (err) {
     div.innerHTML = '<div class="status-msg erro">Erro: ' + err.message + '</div>';
+  }
+}
+
+async function gerarRelatorio() {
+  const sala = document.getElementById('select-sala').value;
+  const status = document.getElementById('status-relatorio');
+  status.innerHTML = 'Gerando PDF... isso pode levar alguns segundos (as fotos demoram mais).';
+  try {
+    const resp = await apiPost('relatorio', { sala: sala });
+    if (!resp.ok) throw new Error(resp.erro || 'Falha ao gerar relatório.');
+    status.innerHTML = '<a href="' + resp.url + '" target="_blank" style="color:var(--azul);font-weight:bold;">✅ PDF pronto — toque aqui para abrir</a>';
+  } catch (err) {
+    status.innerHTML = '<span class="status-msg erro">Erro: ' + err.message + '</span>';
   }
 }
 
