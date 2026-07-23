@@ -158,6 +158,7 @@
     <button class="btn-secondary" style="margin-top:10px;" onclick="abrirFiltroSala()">🏷️ Ver itens por sala</button>
     <button class="btn-secondary" style="margin-top:10px;" onclick="abrirCadastroNovo()">➕ Cadastrar item novo (sem código ainda)</button>
     <button class="btn-secondary" style="margin-top:10px;" onclick="abrirProgresso()">📊 Ver progresso da conferência</button>
+    <button class="btn-secondary" style="margin-top:10px;" onclick="ordenarPlanilha()">🗂️ Organizar planilha por sala</button>
     <div id="status-inicial" class="status-msg"></div>
   </div>
 
@@ -244,7 +245,7 @@
     <div id="status-ficha" class="status-msg"></div>
   </div>
 
-  <div class="rodape">ESF Flor do Cerrado — Nova Mutum/MT<br>antonioresolve.com</div>
+  <div class="rodape">ESF Flor do Cerrado — Nova Mutum/MT<br>Desenvolvido por antonioresolve.com</div>
 </div>
 
 <script>
@@ -432,6 +433,19 @@ async function abrirProgresso() {
   }
 }
 
+// ---------- ORGANIZAR PLANILHA POR SALA ----------
+async function ordenarPlanilha() {
+  const st = document.getElementById('status-inicial');
+  st.innerHTML = 'Organizando a planilha por sala...';
+  try {
+    const resp = await apiPost('ordenar', {});
+    if (!resp.ok) throw new Error(resp.erro || 'Falha ao ordenar.');
+    st.innerHTML = '<span class="status-msg ok">✅ ' + (resp.msg || 'Planilha organizada por sala!') + '</span>';
+  } catch (err) {
+    st.innerHTML = '<span class="status-msg erro">Erro: ' + err.message + '</span>';
+  }
+}
+
 // ---------- CADASTRAR ITEM NOVO ----------
 async function abrirCadastroNovo() {
   document.getElementById('tela-inicial').style.display = 'none';
@@ -593,7 +607,8 @@ async function salvar() {
   const local = localNovo || document.getElementById('campo-local').value;
 
   const payload = {
-    _linha: itemAtual._linha,
+    ID_INTERNO: itemAtual.ID_INTERNO, // usado pelo backend pra achar a linha na hora de salvar (à prova de ordenação)
+    _linha: itemAtual._linha,          // reserva, só por compatibilidade
     LOCAL_ATUAL: local,
     SITUACAO: document.getElementById('campo-situacao').value,
     OBSERVACOES: document.getElementById('campo-obs').value,
@@ -608,7 +623,7 @@ async function salvar() {
     if (!respAtualizar.ok) throw new Error(respAtualizar.erro || 'Falha ao salvar.');
 
     if (fotoBase64) {
-      const respFoto = await apiPost('foto', { _linha: itemAtual._linha, base64: fotoBase64, mimeType: fotoMime });
+      const respFoto = await apiPost('foto', { ID_INTERNO: itemAtual.ID_INTERNO, _linha: itemAtual._linha, base64: fotoBase64, mimeType: fotoMime });
       if (!respFoto.ok) {
         document.getElementById('status-ficha').innerHTML =
           '<span class="status-msg erro">Salvo, mas a foto falhou: ' + respFoto.erro + '</span>';
