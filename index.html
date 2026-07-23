@@ -167,6 +167,7 @@
     <button class="btn-secondary" style="margin-top:10px;" onclick="abrirCadastroNovo()">➕ Cadastrar item novo (sem código ainda)</button>
     <button class="btn-secondary" style="margin-top:10px;" onclick="abrirProgresso()">📊 Ver progresso da conferência</button>
     <button class="btn-secondary" style="margin-top:10px;" onclick="ordenarPlanilha()">🗂️ Organizar planilha por sala</button>
+    <button class="btn-secondary" style="margin-top:10px;" onclick="verCodigosLivres()">🔢 Códigos livres na sequência</button>
 
     <!-- Mini-resumo automático da conferência (carrega sozinho ao abrir o app) -->
     <div id="mini-progresso">
@@ -189,6 +190,10 @@
 
   <div id="tela-cadastro" class="card" style="display:none;">
     <h2 style="font-size:16px;color:var(--azul);margin-top:0;">Cadastrar item novo</h2>
+    <label for="novo-codigo">Código do patrimônio</label>
+    <select id="novo-codigo">
+      <option value="">Automático (próximo da sequência)</option>
+    </select>
     <label for="novo-descricao">Descrição do item</label>
     <input type="text" id="novo-descricao" placeholder="Ex: Armário de aço 2 portas">
     <label for="novo-local">Sala onde está</label>
@@ -484,6 +489,26 @@ async function ordenarPlanilha() {
   }
 }
 
+// ---------- CÓDIGOS LIVRES NA SEQUÊNCIA ----------
+// Lê a coluna de IDs e mostra os números faltantes (linhas excluídas, ex.
+// duplicidade eliminada) que podem ser reaproveitados em aquisições novas.
+async function verCodigosLivres() {
+  const st = document.getElementById('status-inicial');
+  st.innerHTML = 'Consultando a sequência de códigos...';
+  try {
+    const resp = await apiGet({ action: 'faltantes' });
+    if (!resp.ok) throw new Error(resp.erro || 'Falha na consulta.');
+    const livres = resp.faltantes.length
+      ? '<b>' + resp.faltantes.join('</b> · <b>') + '</b>'
+      : 'nenhum — a sequência está completa ✅';
+    st.innerHTML = '<span class="status-msg">Códigos livres (reaproveitáveis): ' + livres +
+      '<br>Próximo código novo: <b>' + resp.proximo + '</b>' +
+      '<br><span style="font-size:11px;color:var(--cinza);">Para usar um código livre, vá em "Cadastrar item novo" e escolha-o no campo Código.</span></span>';
+  } catch (err) {
+    st.innerHTML = '<span class="status-msg erro">Erro: ' + err.message + '</span>';
+  }
+}
+
 // ---------- CADASTRAR ITEM NOVO ----------
 async function abrirCadastroNovo() {
   document.getElementById('tela-inicial').style.display = 'none';
@@ -491,6 +516,22 @@ async function abrirCadastroNovo() {
   document.getElementById('novo-descricao').value = '';
   document.getElementById('novo-obs').value = '';
   document.getElementById('status-cadastro').innerHTML = '';
+
+  // Código: opção automática + números livres reaproveitáveis
+  const selCod = document.getElementById('novo-codigo');
+  selCod.innerHTML = '<option value="">Automático (próximo da sequência)</option>';
+  try {
+    const respF = await apiGet({ action: 'faltantes' });
+    if (respF.ok) {
+      selCod.options[0].textContent = 'Automático (próximo: ' + respF.proximo + ')';
+      respF.faltantes.forEach(function (c) {
+        const opt = document.createElement('option');
+        opt.value = c; opt.textContent = 'Reaproveitar ' + c + ' (livre na sequência)';
+        selCod.appendChild(opt);
+      });
+    }
+  } catch (err) {}
+
   try {
     const resp = await apiGet({ action: 'setores' });
     const setores = resp.ok ? resp.setores : [];
@@ -516,6 +557,8 @@ async function salvarNovoItem() {
     SITUACAO: document.getElementById('novo-situacao').value,
     OBSERVACOES: document.getElementById('novo-obs').value
   };
+  const codEscolhido = document.getElementById('novo-codigo').value;
+  if (codEscolhido) payload.ID_DESEJADO = codEscolhido;
   document.getElementById('status-cadastro').innerHTML = 'Salvando...';
   try {
     const resp = await apiPost('cadastrar', payload);
