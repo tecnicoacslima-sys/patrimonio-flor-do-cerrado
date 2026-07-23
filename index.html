@@ -23,7 +23,7 @@
   <link rel="apple-touch-icon" href="icon-192.png">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Patrimônio ESF">
-  <meta name="theme-color" content="#2F5496">
+  <meta name="theme-color" content="#0F4B3D">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700&display=swap" rel="stylesheet">
   <script src="https://unpkg.com/@zxing/library@0.20.0/umd/index.min.js"></script>
@@ -135,6 +135,14 @@
     .resumo-numero { font-size: 32px; font-weight: bold; color: var(--azul); }
     .resumo-caixa { display: flex; justify-content: space-around; text-align: center; margin-bottom: 10px; }
     .resumo-label { font-size: 11px; color: var(--cinza); }
+
+    /* Mini-resumo de progresso na tela inicial */
+    #mini-progresso { margin-top: 16px; display: none; }
+    #mini-progresso .topo {
+      display: flex; justify-content: space-between;
+      font-size: 12px; color: var(--cinza); margin-bottom: 3px;
+    }
+    #mini-progresso .topo b { color: var(--azul); }
   </style>
 </head>
 <body>
@@ -159,6 +167,16 @@
     <button class="btn-secondary" style="margin-top:10px;" onclick="abrirCadastroNovo()">➕ Cadastrar item novo (sem código ainda)</button>
     <button class="btn-secondary" style="margin-top:10px;" onclick="abrirProgresso()">📊 Ver progresso da conferência</button>
     <button class="btn-secondary" style="margin-top:10px;" onclick="ordenarPlanilha()">🗂️ Organizar planilha por sala</button>
+
+    <!-- Mini-resumo automático da conferência (carrega sozinho ao abrir o app) -->
+    <div id="mini-progresso">
+      <div class="topo">
+        <span>Conferência da rodada</span>
+        <b id="mini-progresso-num">—</b>
+      </div>
+      <div class="barra-fundo"><div id="mini-progresso-barra" class="barra-preenchida" style="width:0%"></div></div>
+    </div>
+
     <div id="status-inicial" class="status-msg"></div>
   </div>
 
@@ -209,6 +227,7 @@
     <div class="info-linha">ID interno: <b id="ficha-id"></b></div>
     <div class="info-linha">Setor original da lista: <b id="ficha-setor-orig"></b></div>
     <div class="info-linha">Valor de aquisição: <b id="ficha-valor"></b></div>
+    <div class="info-linha">Última conferência: <b id="ficha-conferencia">—</b></div>
 
     <label for="campo-codigo-prefeitura">Código da prefeitura (etiqueta oficial, quando chegar)</label>
     <input type="text" id="campo-codigo-prefeitura" placeholder="Ex: 0006249 (mantém os zeros à esquerda)">
@@ -335,6 +354,25 @@ function buscarManual() {
   if (!val) return;
   document.getElementById('input-manual').value = '';
   buscar(val);
+}
+
+// ---------- MINI-RESUMO DE PROGRESSO (tela inicial) ----------
+// Carrega sozinho ao abrir o app e se atualiza depois de cada salvamento
+// ou cadastro. Se a chamada falhar, o bloco simplesmente não aparece —
+// nunca atrapalha o uso normal.
+async function atualizarMiniProgresso() {
+  try {
+    const resp = await apiGet({ action: 'progresso' });
+    if (!resp.ok) return;
+    const p = resp.progresso;
+    const pct = p.total ? Math.round((p.conferidos / p.total) * 100) : 0;
+    document.getElementById('mini-progresso-num').textContent =
+      p.conferidos + '/' + p.total + ' conferidos (' + pct + '%)';
+    document.getElementById('mini-progresso-barra').style.width = pct + '%';
+    document.getElementById('mini-progresso').style.display = 'block';
+  } catch (e) {
+    // silencioso de propósito
+  }
 }
 
 // ---------- FILTRO POR SALA ----------
@@ -484,6 +522,7 @@ async function salvarNovoItem() {
     if (!resp.ok) throw new Error(resp.erro || 'Falha ao cadastrar.');
     document.getElementById('status-cadastro').innerHTML =
       '<span class="status-msg ok">✅ Cadastrado como ' + resp.id_interno + '! Anota esse código pra imprimir a etiqueta depois.</span>';
+    atualizarMiniProgresso();
     setTimeout(voltarInicio, 2500);
   } catch (err) {
     document.getElementById('status-cadastro').innerHTML =
@@ -529,6 +568,22 @@ async function buscar(codigo) {
 }
 
 // ---------- FICHA ----------
+// A data de conferência pode chegar como texto "dd/MM/yyyy HH:mm" (como o
+// backend grava) ou como data ISO (quando o Sheets interpreta a célula como
+// data de verdade). Esta função aceita os dois e devolve sempre "dd/mm/aaaa hh:mm".
+function formatarDataConferencia(v) {
+  if (!v) return '';
+  const s = String(v);
+  if (/^\d{4}-\d{2}-\d{2}T/.test(s)) {
+    const d = new Date(s);
+    if (!isNaN(d)) {
+      return d.toLocaleDateString('pt-BR') + ' ' +
+        d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    }
+  }
+  return s;
+}
+
 function mostrarFicha(item) {
   document.getElementById('tela-inicial').style.display = 'none';
   document.getElementById('tela-ficha').style.display = 'block';
@@ -540,6 +595,16 @@ function mostrarFicha(item) {
   document.getElementById('campo-codigo-prefeitura').value = item.CODIGO_PREFEITURA || '';
   const valorTxt = item.VALOR_AQUISICAO ? ('R$ ' + item.VALOR_AQUISICAO + (item.DATA_AQUISICAO_IDADE ? ' (' + item.DATA_AQUISICAO_IDADE + ')' : '')) : 'não informado';
   document.getElementById('ficha-valor').textContent = valorTxt;
+
+  // Situação da conferência: quando foi a última e se este item já foi
+  // conferido nesta rodada — pra ninguém conferir o mesmo item duas vezes.
+  const jaConferido = String(item.CONFERIDO_NESTA_RODADA || '').trim().toUpperCase() === 'SIM';
+  const dataConf = formatarDataConferencia(item.DATA_ULTIMA_CONFERENCIA);
+  document.getElementById('ficha-conferencia').innerHTML =
+    (dataConf || 'nunca') +
+    (jaConferido
+      ? ' <span style="color:var(--verde);">• já conferido nesta rodada</span>'
+      : ' <span style="color:var(--amarelo);">• pendente nesta rodada</span>');
 
   const badge = document.getElementById('badge-status');
   badge.textContent = item.STATUS_ETIQUETA || '';
@@ -640,6 +705,7 @@ async function salvar() {
 function finalizarSalvamento() {
   document.getElementById('status-ficha').innerHTML =
     '<span class="status-msg ok">✅ Conferido e salvo com sucesso!</span>';
+  atualizarMiniProgresso();
   setTimeout(voltarInicio, 1200);
 }
 
@@ -657,6 +723,9 @@ function voltarInicio() {
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('sw.js').catch(() => {});
 }
+
+// Carrega o mini-resumo de progresso assim que o app abre
+atualizarMiniProgresso();
 </script>
 
 </body>
