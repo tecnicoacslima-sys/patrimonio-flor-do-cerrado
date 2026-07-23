@@ -24,10 +24,14 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Patrimônio ESF">
   <meta name="theme-color" content="#2F5496">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700&display=swap" rel="stylesheet">
   <script src="https://unpkg.com/@zxing/library@0.20.0/umd/index.min.js"></script>
   <style>
     :root {
-      --azul: #2F5496;
+      --azul: #0F4B3D;
+      --azul-escuro: #0B3A2F;
+      --lima: #B7D34A;
       --verde: #2e7d32;
       --amarelo: #b8860b;
       --vermelho: #c0392b;
@@ -35,7 +39,7 @@
     }
     * { box-sizing: border-box; }
     body {
-      font-family: Arial, Helvetica, sans-serif;
+      font-family: 'Montserrat', Arial, Helvetica, sans-serif;
       margin: 0; padding: 0;
       background: #f4f6f9;
       color: #222;
@@ -46,7 +50,9 @@
       padding: 14px 16px;
       text-align: center;
       position: sticky; top: 0; z-index: 10;
+      display: flex; align-items: center; justify-content: center; gap: 10px;
     }
+    header img { height: 40px; width: auto; }
     header h1 { font-size: 17px; margin: 0; }
     header p { font-size: 12px; margin: 2px 0 0; opacity: .85; }
 
@@ -123,7 +129,7 @@
     .tag-pendente { background: #FFF2CC; color: var(--amarelo); }
 
     .barra-fundo { background: #eee; border-radius: 8px; height: 10px; overflow: hidden; margin-top: 4px; }
-    .barra-preenchida { background: var(--verde); height: 100%; border-radius: 8px; }
+    .barra-preenchida { background: var(--lima); height: 100%; border-radius: 8px; }
     .linha-progresso-sala { padding: 8px 4px; border-bottom: 1px solid #eee; }
     .linha-progresso-sala .topo { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 3px; }
     .resumo-numero { font-size: 32px; font-weight: bold; color: var(--azul); }
@@ -134,8 +140,11 @@
 <body>
 
 <header>
-  <h1>📋 Patrimônio ESF Flor do Cerrado</h1>
-  <p>Leitor de código PAT-XXXX</p>
+  <img src="logo-nova-mutum.png" alt="Brasão Nova Mutum">
+  <div>
+    <h1>Patrimônio ESF Flor do Cerrado</h1>
+    <p>Leitor de código PAT-XXXX</p>
+  </div>
 </header>
 
 <div class="container">
