@@ -27,6 +27,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700&display=swap" rel="stylesheet">
   <script src="https://unpkg.com/@zxing/library@0.20.0/umd/index.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
   <style>
     :root {
       --azul: #0F4B3D;
@@ -216,6 +217,10 @@
     <select id="select-sala"></select>
     <button class="btn-primary" style="margin-top:10px;" onclick="listarItensDaSala()">Ver itens desta sala</button>
     <button class="btn-secondary" onclick="gerarRelatorio()">📄 Gerar relatório PDF desta sala</button>
+    <button class="btn-secondary" onclick="imprimirEtiquetasSala()">🏷️ Imprimir etiquetas desta sala</button>
+    <label style="display:flex;align-items:center;gap:6px;font-weight:normal;font-size:12px;margin-top:6px;">
+      <input type="checkbox" id="chk-etq-conferidos" style="width:auto;"> Somente itens já conferidos nesta rodada
+    </label>
     <button class="btn-secondary" onclick="voltarInicio()">Voltar</button>
     <div id="status-relatorio" class="status-msg"></div>
     <div id="lista-sala" style="margin-top:14px;"></div>
@@ -264,6 +269,7 @@
     <img id="foto-nova-preview" class="foto-preview" style="display:none;">
 
     <button class="btn-primary" style="margin-top:16px;" onclick="salvar()">✅ Salvar e marcar como conferido</button>
+    <button class="btn-secondary" onclick="imprimirEtiquetaItem()">🏷️ Imprimir etiqueta deste item</button>
     <button class="btn-secondary" onclick="voltarInicio()">Cancelar / escanear outro</button>
 
     <div id="status-ficha" class="status-msg"></div>
@@ -486,6 +492,104 @@ async function ordenarPlanilha() {
     st.innerHTML = '<span class="status-msg ok">✅ ' + (resp.msg || 'Planilha organizada por sala!') + '</span>';
   } catch (err) {
     st.innerHTML = '<span class="status-msg erro">Erro: ' + err.message + '</span>';
+  }
+}
+
+// ---------- GERADOR DE ETIQUETAS (no próprio app) ----------
+// Gera etiquetas PAT-XXXX com código de barras Code128 direto no navegador
+// (biblioteca JsBarcode) e abre a janela de impressão do aparelho — dá pra
+// mandar pra impressora ou "Salvar como PDF". Grade de 3 colunas, mesmo
+// layout das etiquetas em lote.
+const CSS_ETIQUETAS = '@page{size:A4;margin:8mm}' +
+  'body{margin:0;font-family:Arial,Helvetica,sans-serif}' +
+  '#grade{display:grid;grid-template-columns:repeat(3,1fr)}' +
+  '.etq{border:0.4px solid #ccc;height:34.5mm;box-sizing:border-box;display:flex;' +
+  'flex-direction:column;align-items:center;padding:2mm 2mm 1mm;text-align:center;' +
+  'overflow:hidden;page-break-inside:avoid;break-inside:avoid}' +
+  '.bc svg{height:9mm;max-width:56mm}' +
+  '.pat{font-weight:bold;font-size:10pt;margin-top:0.5mm}' +
+  '.desc{font-size:6pt;line-height:1.25;max-height:6.2mm;overflow:hidden}' +
+  '.sala{font-size:6pt;font-style:italic;color:#333;margin-top:0.8mm}' +
+  '.rodape{font-size:4.5pt;color:#777;margin-top:auto}';
+
+function esc(t) {
+  return String(t == null ? '' : t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function svgCodigoBarras(texto) {
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  JsBarcode(svg, texto, { format: 'CODE128', displayValue: false, height: 38, width: 1.4, margin: 0 });
+  return svg.outerHTML;
+}
+
+function htmlEtiqueta(id, desc, sala) {
+  return '<div class="etq">' +
+    '<div class="bc">' + svgCodigoBarras(id) + '</div>' +
+    '<div class="pat">' + esc(id) + '</div>' +
+    '<div class="desc">' + esc(desc) + '</div>' +
+    '<div class="sala">' + esc(sala) + '</div>' +
+    '<div class="rodape">ESF FLOR DO CERRADO</div>' +
+    '</div>';
+}
+
+// Abre a janela de impressão JÁ no clique (evita bloqueio de pop-up) e
+// preenche depois, quando os dados chegarem.
+function abrirJanelaEtiquetas() {
+  const w = window.open('', '_blank');
+  if (!w) return null;
+  w.document.write('<!DOCTYPE html><html><head><meta charset="utf-8">' +
+    '<title>Etiquetas PAT</title><style>' + CSS_ETIQUETAS + '</style></head>' +
+    '<body><div id="grade">Gerando etiquetas...</div></body></html>');
+  w.document.close();
+  return w;
+}
+
+function preencherEtiquetas(w, etiquetasHtml, quantidade) {
+  w.document.getElementById('grade').innerHTML = etiquetasHtml;
+  w.document.title = 'Etiquetas PAT (' + quantidade + ')';
+  setTimeout(function () { try { w.focus(); w.print(); } catch (e) {} }, 500);
+}
+
+// Etiqueta avulsa do item aberto na ficha. Usa a sala escolhida NA TELA
+// (mesmo antes de salvar) — assim, definiu o destino na conferência, a
+// etiqueta já sai com a sala correta.
+function imprimirEtiquetaItem() {
+  if (!itemAtual) return;
+  const w = abrirJanelaEtiquetas();
+  if (!w) { alert('O navegador bloqueou a janela de impressão. Permita pop-ups para este site.'); return; }
+  const localNovo = document.getElementById('campo-local-novo').value.trim();
+  const sala = localNovo || document.getElementById('campo-local').value || itemAtual.LOCAL_ATUAL || '';
+  const html = htmlEtiqueta(itemAtual.ID_INTERNO, itemAtual.DESCRICAO_ITEM || '', sala);
+  preencherEtiquetas(w, html, 1);
+}
+
+// Etiquetas de todos os itens da sala selecionada (opcionalmente só os já
+// conferidos nesta rodada, pra não imprimir etiqueta desnecessária).
+async function imprimirEtiquetasSala() {
+  const sala = document.getElementById('select-sala').value;
+  const soConferidos = document.getElementById('chk-etq-conferidos').checked;
+  const w = abrirJanelaEtiquetas();
+  if (!w) { alert('O navegador bloqueou a janela de impressão. Permita pop-ups para este site.'); return; }
+  try {
+    const resp = await apiGet({ action: 'listarSala', sala: sala });
+    if (!resp.ok) throw new Error(resp.erro || 'Falha ao listar a sala.');
+    let itens = resp.itens;
+    if (soConferidos) {
+      itens = itens.filter(function (i) {
+        return String(i.CONFERIDO_NESTA_RODADA || '').trim().toUpperCase() === 'SIM';
+      });
+    }
+    if (!itens.length) {
+      w.document.getElementById('grade').textContent =
+        'Nenhum item para etiquetar nessa sala' + (soConferidos ? ' (com o filtro de conferidos ativo).' : '.');
+      return;
+    }
+    const html = itens.map(function (i) {
+      return htmlEtiqueta(i.ID_INTERNO, i.DESCRICAO_ITEM || '', i.LOCAL_ATUAL || sala);
+    }).join('');
+    preencherEtiquetas(w, html, itens.length);
+  } catch (err) {
+    try { w.document.getElementById('grade').textContent = 'Erro: ' + err.message; } catch (e) {}
   }
 }
 
