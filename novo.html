@@ -1,0 +1,1319 @@
+<!--
+  APP DE PATRIMÔNIO — ESF FLOR DO CERRADO (versão Supabase)
+  Página hospedada no GitHub Pages que conversa direto com o banco Supabase
+  (projeto "patrimonio"). Login individual por e-mail e senha.
+  Desenvolvido por antonioresolve.com
+-->
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Patrimônio ESF Flor do Cerrado</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="icon-192.png">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Patrimônio ESF">
+  <meta name="theme-color" content="#0F4B3D">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="https://unpkg.com/@zxing/library@0.20.0/umd/index.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
+  <style>
+    :root {
+      --azul: #0F4B3D; --azul-escuro: #0B3A2F; --lima: #B7D34A;
+      --verde: #2e7d32; --amarelo: #b8860b; --vermelho: #c0392b; --cinza: #666;
+    }
+    * { box-sizing: border-box; }
+    body { font-family: 'Montserrat', Arial, Helvetica, sans-serif; margin: 0; background: #f4f6f9; color: #222; }
+    header {
+      background: var(--azul); color: #fff; padding: 12px 16px; position: sticky; top: 0; z-index: 10;
+      display: flex; align-items: center; justify-content: center; gap: 10px;
+    }
+    header img { height: 40px; width: auto; }
+    header h1 { font-size: 17px; margin: 0; }
+    header p { font-size: 12px; margin: 2px 0 0; opacity: .85; }
+    .container { padding: 16px; max-width: 480px; margin: 0 auto; }
+    .card { background: #fff; border-radius: 10px; padding: 16px; box-shadow: 0 1px 3px rgba(0,0,0,.12); margin-bottom: 16px; }
+    h2.tit { font-size: 16px; color: var(--azul); margin: 0 0 10px; }
+    button { font-family: inherit; font-size: 15px; border: none; border-radius: 8px; padding: 13px 16px; cursor: pointer; width: 100%; }
+    .btn-primary { background: var(--azul); color: #fff; }
+    .btn-secondary { background: #eee; color: #333; margin-top: 8px; }
+    .btn-danger { background: var(--vermelho); color: #fff; }
+    .btn-baixa { background: #fdecea; color: var(--vermelho); margin-top: 8px; font-weight: 600; }
+    .btn-link { background: none; color: var(--azul); text-decoration: underline; padding: 8px; font-size: 13px; }
+    button:disabled { opacity: .5; }
+    #video-wrap { display: none; }
+    #video-preview { width: 100%; border-radius: 10px; background: #000; margin-bottom: 8px; }
+    .manual-busca { display: flex; gap: 8px; margin-top: 10px; }
+    .manual-busca input { flex: 1; padding: 10px; border-radius: 8px; border: 1px solid #ccc; font-size: 16px; }
+    .manual-busca button { width: auto; padding: 10px 14px; margin-top: 0; }
+    .ficha h2 { font-size: 18px; margin: 0 0 4px; color: var(--azul); }
+    .badge { display: inline-block; font-size: 11px; font-weight: bold; padding: 3px 8px; border-radius: 20px; margin-bottom: 10px; }
+    .badge-ok { background: #E2EFDA; color: var(--verde); }
+    .badge-pendente { background: #FFF2CC; color: var(--amarelo); }
+    .badge-duvidoso { background: #F8CBAD; color: var(--vermelho); }
+    label { display: block; font-size: 12px; color: var(--cinza); margin: 12px 0 4px; font-weight: bold; }
+    select, textarea, input[type=text], input[type=email], input[type=password], input[type=date] {
+      width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #ccc; font-size: 16px; font-family: inherit; background: #fff;
+    }
+    textarea { min-height: 60px; resize: vertical; }
+    .foto-preview { width: 100%; max-height: 220px; object-fit: contain; border-radius: 8px; margin-top: 8px; background: #f0f0f0; }
+    .status-msg { text-align: center; padding: 10px; font-size: 14px; }
+    .status-msg.erro { color: var(--vermelho); }
+    .status-msg.ok { color: var(--verde); font-weight: bold; }
+    .info-linha { font-size: 13px; color: var(--cinza); margin-top: 2px; }
+    .rodape { text-align: center; font-size: 11px; color: #999; margin-top: 20px; }
+    .item-lista { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 10px 4px; border-bottom: 1px solid #eee; cursor: pointer; }
+    .item-lista:last-child { border-bottom: none; }
+    .item-lista .nome { font-size: 14px; }
+    .tag { font-size: 10px; padding: 2px 7px; border-radius: 10px; font-weight: bold; white-space: nowrap; }
+    .tag-ok { background: #E2EFDA; color: var(--verde); }
+    .tag-pendente { background: #FFF2CC; color: var(--amarelo); }
+    .tag-baixa-aguard { background: #FFF2CC; color: var(--amarelo); }
+    .tag-baixa-ok { background: #fdecea; color: var(--vermelho); }
+    .tag-baixa-cinza { background: #eee; color: #777; }
+    .barra-fundo { background: #eee; border-radius: 8px; height: 10px; overflow: hidden; margin-top: 4px; }
+    .barra-preenchida { background: var(--lima); height: 100%; border-radius: 8px; }
+    .linha-progresso-sala { padding: 8px 4px; border-bottom: 1px solid #eee; }
+    .linha-progresso-sala .topo { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 3px; }
+    .resumo-numero { font-size: 32px; font-weight: bold; color: var(--azul); }
+    .resumo-caixa { display: flex; justify-content: space-around; text-align: center; margin-bottom: 10px; }
+    .resumo-label { font-size: 11px; color: var(--cinza); }
+    #mini-progresso { margin-top: 16px; display: none; }
+    #mini-progresso .topo { display: flex; justify-content: space-between; font-size: 12px; color: var(--cinza); margin-bottom: 3px; }
+    #mini-progresso .topo b { color: var(--azul); }
+    .aviso-baixa { background: #FFF2CC; border-left: 4px solid var(--amarelo); padding: 10px; border-radius: 6px; font-size: 13px; margin: 8px 0; text-align: left; }
+    .aviso-baixa.concluida { background: #fdecea; border-left-color: var(--vermelho); }
+    .bloco-retirada { border: 1px dashed #bbb; border-radius: 8px; padding: 4px 12px 12px; margin-top: 12px; }
+    .linha-check { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 13px; color: #333; margin-top: 14px; }
+    .linha-check input { width: auto; transform: scale(1.3); }
+    .anexo-link { display: inline-block; margin-top: 6px; font-size: 13px; color: var(--azul); font-weight: 600; cursor: pointer; }
+    .usuario-barra { display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: var(--cinza); margin-bottom: 12px; }
+    .usuario-barra button { width: auto; padding: 6px 10px; font-size: 12px; margin: 0; background: #eee; }
+    details.hist summary { cursor: pointer; font-size: 13px; color: var(--azul); font-weight: 600; margin-top: 14px; }
+    .hist-linha { font-size: 12px; border-bottom: 1px solid #eee; padding: 6px 0; }
+    .hist-linha b { color: var(--azul); }
+    .pessoa { border: 1px solid #eee; border-radius: 8px; padding: 10px; margin-bottom: 8px; }
+    .pessoa .linha { display: flex; gap: 6px; margin-top: 6px; }
+    .pessoa .linha > * { flex: 1; }
+    .pessoa button { margin-top: 0; padding: 8px; font-size: 13px; }
+  </style>
+</head>
+<body>
+
+<header>
+  <img src="logo-nova-mutum.png" alt="Brasão Nova Mutum">
+  <div>
+    <h1>Patrimônio ESF Flor do Cerrado</h1>
+    <p>Leitor de código PAT-XXXX</p>
+  </div>
+</header>
+
+<div class="container">
+
+  <!-- ================= LOGIN ================= -->
+  <div id="tela-login" class="card" style="display:none;">
+    <h2 class="tit">Entrar</h2>
+    <label for="login-email">E-mail</label>
+    <input type="email" id="login-email" autocomplete="username" placeholder="seu@email.com">
+    <label for="login-senha">Senha</label>
+    <input type="password" id="login-senha" autocomplete="current-password">
+    <button class="btn-primary" style="margin-top:14px;" onclick="entrar()">Entrar</button>
+    <button class="btn-secondary" onclick="criarSenha()">Primeiro acesso: criar minha senha</button>
+    <button class="btn-link" onclick="esqueciSenha()">Esqueci minha senha</button>
+    <div id="status-login" class="status-msg"></div>
+  </div>
+
+  <!-- ================= NOVA SENHA (link do e-mail) ================= -->
+  <div id="tela-nova-senha" class="card" style="display:none;">
+    <h2 class="tit">Criar nova senha</h2>
+    <label for="nova-senha">Nova senha (mínimo 6 caracteres)</label>
+    <input type="password" id="nova-senha" autocomplete="new-password">
+    <button class="btn-primary" style="margin-top:14px;" onclick="salvarNovaSenha()">Salvar nova senha</button>
+    <div id="status-nova-senha" class="status-msg"></div>
+  </div>
+
+  <!-- ================= SEM ACESSO ================= -->
+  <div id="tela-sem-acesso" class="card" style="display:none;">
+    <h2 class="tit">Acesso não liberado</h2>
+    <p style="font-size:14px;">Seu e-mail ainda não foi cadastrado pela administração da unidade, ou o acesso foi desativado. Peça para um administrador te convidar em <b>👥 Equipe</b>.</p>
+    <button class="btn-secondary" onclick="sair()">Sair</button>
+  </div>
+
+  <!-- ================= INÍCIO ================= -->
+  <div id="tela-inicial" class="card" style="display:none;">
+    <div class="usuario-barra">
+      <span>👤 <b id="usuario-nome">—</b> <span id="usuario-papel"></span></span>
+      <button onclick="sair()">Sair</button>
+    </div>
+    <button class="btn-primary" onclick="iniciarScanner()">📷 Escanear código de barras</button>
+    <div class="manual-busca">
+      <input type="text" id="input-manual" placeholder="Aponte o leitor Bluetooth aqui ou digite o código">
+      <button class="btn-secondary" onclick="buscarManual()">Buscar</button>
+    </div>
+    <button class="btn-secondary" style="margin-top:10px;" onclick="abrirFiltroSala()">🏷️ Ver itens por sala</button>
+    <button class="btn-secondary" onclick="abrirCadastroNovo()">➕ Cadastrar item novo (sem código ainda)</button>
+    <button class="btn-secondary" onclick="abrirProgresso()">📊 Ver progresso da conferência</button>
+    <button class="btn-secondary" onclick="verCodigosLivres()">🔢 Códigos livres na sequência</button>
+    <button class="btn-secondary" onclick="abrirListaBaixas()">📦 Baixados / transferidos</button>
+    <button class="btn-secondary" onclick="exportarInventario()">📥 Baixar inventário (Excel)</button>
+    <button class="btn-secondary" id="btn-equipe" style="display:none;" onclick="abrirEquipe()">👥 Equipe (acessos)</button>
+
+    <div id="mini-progresso">
+      <div class="topo"><span>Conferência da rodada</span><b id="mini-progresso-num">—</b></div>
+      <div class="barra-fundo"><div id="mini-progresso-barra" class="barra-preenchida" style="width:0%"></div></div>
+    </div>
+    <div id="status-inicial" class="status-msg"></div>
+  </div>
+
+  <div id="video-wrap" class="card">
+    <video id="video-preview" autoplay muted playsinline></video>
+    <button class="btn-danger" onclick="pararScanner()">Cancelar leitura</button>
+  </div>
+
+  <!-- ================= PROGRESSO ================= -->
+  <div id="tela-progresso" class="card" style="display:none;">
+    <h2 class="tit">Progresso da conferência</h2>
+    <div id="resumo-progresso" style="margin-bottom:14px;"></div>
+    <div id="lista-progresso"></div>
+    <button class="btn-secondary" id="btn-nova-rodada" style="display:none;margin-top:14px;" onclick="novaRodada()">🔄 Iniciar nova rodada de conferência</button>
+    <button class="btn-secondary" onclick="voltarInicio()">Voltar</button>
+    <div id="status-progresso" class="status-msg"></div>
+  </div>
+
+  <!-- ================= CADASTRO ================= -->
+  <div id="tela-cadastro" class="card" style="display:none;">
+    <h2 class="tit">Cadastrar item novo</h2>
+    <label for="novo-codigo">Código do patrimônio</label>
+    <select id="novo-codigo"><option value="">Automático (próximo da sequência)</option></select>
+    <label for="novo-descricao">Descrição do item</label>
+    <input type="text" id="novo-descricao" placeholder="Ex: Armário de aço 2 portas">
+    <label for="novo-local">Sala onde está</label>
+    <select id="novo-local"></select>
+    <input type="text" id="novo-local-novo" placeholder="Nova sala (se não estiver na lista)" style="margin-top:6px;">
+    <label for="novo-situacao">Condição de uso</label>
+    <select id="novo-situacao"><option>BOM</option><option>REGULAR</option><option>RUIM</option></select>
+    <label for="novo-obs">Observações</label>
+    <textarea id="novo-obs" placeholder="Opcional"></textarea>
+    <button class="btn-primary" style="margin-top:14px;" onclick="salvarNovoItem()">Cadastrar e gerar código</button>
+    <button class="btn-secondary" onclick="voltarInicio()">Cancelar</button>
+    <div id="status-cadastro" class="status-msg"></div>
+  </div>
+
+  <!-- ================= SALA ================= -->
+  <div id="tela-sala" class="card" style="display:none;">
+    <label for="select-sala">Escolha a sala</label>
+    <select id="select-sala"></select>
+    <button class="btn-primary" style="margin-top:10px;" onclick="listarItensDaSala()">Ver itens desta sala</button>
+    <button class="btn-secondary" onclick="gerarRelatorioSala()">📄 Relatório PDF desta sala</button>
+    <button class="btn-secondary" onclick="imprimirEtiquetasSala()">🏷️ Imprimir etiquetas desta sala</button>
+    <label style="display:flex;align-items:center;gap:6px;font-weight:normal;font-size:12px;margin-top:6px;">
+      <input type="checkbox" id="chk-etq-conferidos" style="width:auto;"> Somente itens já conferidos nesta rodada
+    </label>
+    <button class="btn-secondary" onclick="voltarInicio()">Voltar</button>
+    <div id="status-relatorio" class="status-msg"></div>
+    <div id="lista-sala" style="margin-top:14px;"></div>
+  </div>
+
+  <!-- ================= FICHA ================= -->
+  <div id="tela-ficha" class="card ficha" style="display:none;">
+    <span id="badge-status" class="badge"></span>
+    <h2 id="ficha-descricao">—</h2>
+    <div class="info-linha">Código: <b id="ficha-id"></b></div>
+    <div class="info-linha">Setor original da lista: <b id="ficha-setor-orig"></b></div>
+    <div class="info-linha">Valor de aquisição: <b id="ficha-valor"></b></div>
+    <div class="info-linha">Última conferência: <b id="ficha-conferencia">—</b></div>
+    <div id="ficha-aviso-baixa" class="aviso-baixa" style="display:none;"></div>
+
+    <label for="campo-codigo-prefeitura">Código da prefeitura (etiqueta oficial)</label>
+    <input type="text" id="campo-codigo-prefeitura" placeholder="Ex: 0006249 (mantém os zeros à esquerda)">
+
+    <img id="foto-atual" class="foto-preview" style="display:none;">
+
+    <label for="campo-local">Local atual (consultório/sala)</label>
+    <select id="campo-local"></select>
+    <input type="text" id="campo-local-novo" placeholder="Novo local (se não estiver na lista)" style="margin-top:6px;">
+
+    <label for="campo-situacao">Condição de uso</label>
+    <select id="campo-situacao">
+      <option>BOM</option><option>REGULAR</option><option>RUIM</option><option>QUEBRADO</option>
+      <option>RECOLHER PARA BAIXA</option><option>INSERVÍVEL</option>
+    </select>
+
+    <label for="campo-idade">Data de aquisição / idade aproximada (opcional)</label>
+    <input type="text" id="campo-idade" placeholder="Ex: 2019 ou 5 anos aprox.">
+
+    <label for="campo-obs">Observações</label>
+    <textarea id="campo-obs"></textarea>
+
+    <label for="campo-foto">Tirar / anexar foto</label>
+    <input type="file" id="campo-foto" accept="image/*" capture="environment" onchange="previewFoto(event)">
+    <img id="foto-nova-preview" class="foto-preview" style="display:none;">
+
+    <button class="btn-primary" style="margin-top:16px;" onclick="salvar()">✅ Salvar e marcar como conferido</button>
+    <button class="btn-secondary" onclick="imprimirEtiquetaItem()">🏷️ Imprimir etiqueta deste item</button>
+    <button class="btn-baixa" id="btn-ficha-baixa" onclick="abrirBaixaDaFicha()">📤 Registrar baixa / transferência</button>
+    <button class="btn-secondary" onclick="voltarInicio()">Cancelar / escanear outro</button>
+    <div id="status-ficha" class="status-msg"></div>
+
+    <details class="hist" id="ficha-hist" ontoggle="if(this.open) carregarHistoricoItem()">
+      <summary>🕘 Histórico deste item</summary>
+      <div id="ficha-hist-lista" style="margin-top:6px;"></div>
+    </details>
+  </div>
+
+  <!-- ================= LISTA DE BAIXAS ================= -->
+  <div id="tela-baixas" class="card" style="display:none;">
+    <h2 class="tit">Patrimônios baixados / transferidos</h2>
+    <label for="filtro-baixas">Mostrar</label>
+    <select id="filtro-baixas" onchange="carregarListaBaixas()">
+      <option value="">Todos os registros</option>
+      <option value="AGUARDANDO RETIRADA">Aguardando retirada</option>
+      <option value="CONCLUÍDA">Concluídos (já saíram da unidade)</option>
+      <option value="CANCELADA">Cancelados</option>
+      <option value="DESFEITA (ITEM VOLTOU)">Desfeitos (item voltou)</option>
+    </select>
+    <div id="lista-baixas" style="margin-top:12px;"></div>
+    <button class="btn-secondary" style="margin-top:14px;" onclick="voltarInicio()">Voltar</button>
+  </div>
+
+  <!-- ================= FORMULÁRIO DE BAIXA ================= -->
+  <div id="tela-baixa" class="card" style="display:none;">
+    <h2 class="tit" style="color:var(--vermelho);">Baixa / transferência</h2>
+    <div style="font-size:14px;"><b id="bx-id">—</b> — <span id="bx-desc">—</span></div>
+    <div class="info-linha">Última sala: <b id="bx-sala">—</b> · Situação do registro: <b id="bx-status">NOVO</b></div>
+
+    <label for="bx-tipo">Tipo</label>
+    <select id="bx-tipo" onchange="ajustarCamposBaixa()">
+      <option value="">— escolha —</option>
+      <option>DESCARTE</option>
+      <option>TRANSFERÊNCIA PARA OUTRO ESTABELECIMENTO</option>
+      <option>DEVOLUÇÃO AO ALMOXARIFADO / PATRIMÔNIO</option>
+      <option>FURTO / EXTRAVIO</option>
+      <option>OUTRO</option>
+    </select>
+    <label for="bx-data-sol">Data da solicitação</label>
+    <input type="date" id="bx-data-sol">
+    <label for="bx-solicitante">Quem solicitou</label>
+    <input type="text" id="bx-solicitante" placeholder="Nome (e cargo, se quiser)">
+    <label for="bx-motivo">Motivo</label>
+    <textarea id="bx-motivo" placeholder="Ex: quebrado sem conserto; remanejado para a ESF Jardim; obsoleto..."></textarea>
+    <div id="bx-bloco-destino">
+      <label for="bx-destino">Destino (para onde foi)</label>
+      <input type="text" id="bx-destino" placeholder="Ex: ESF Jardim / Almoxarifado central">
+    </div>
+
+    <label class="linha-check"><input type="checkbox" id="bx-concluir" onchange="ajustarCamposBaixa()"> O item já foi retirado da unidade</label>
+    <div class="info-linha" style="font-size:11px;">Ao salvar com esta opção marcada, o item sai da lista ativa e fica guardado nas baixas.</div>
+    <div id="bx-bloco-retirada" class="bloco-retirada" style="display:none;">
+      <label for="bx-data-ret">Data da retirada</label>
+      <input type="date" id="bx-data-ret">
+      <label for="bx-retirado-por">Nome de quem retirou</label>
+      <input type="text" id="bx-retirado-por" placeholder="Nome completo">
+      <label for="bx-matricula">Matrícula / documento de quem retirou</label>
+      <input type="text" id="bx-matricula" placeholder="Opcional">
+    </div>
+
+    <label for="bx-num-termo">Nº do termo de transferência / processo</label>
+    <input type="text" id="bx-num-termo" placeholder="Opcional">
+    <label for="bx-termo">Anexar termo (PDF ou foto do papel)</label>
+    <input type="file" id="bx-termo" accept="application/pdf,image/*">
+    <div id="bx-termo-atual"></div>
+    <label for="bx-foto-ret">Foto do momento da retirada</label>
+    <input type="file" id="bx-foto-ret" accept="image/*" capture="environment">
+    <div id="bx-foto-atual"></div>
+    <label for="bx-sistema">Baixa já feita no sistema da prefeitura?</label>
+    <select id="bx-sistema">
+      <option value="">— não informado —</option><option>NÃO</option><option>SIM</option><option>NÃO SE APLICA</option>
+    </select>
+    <label for="bx-obs">Observações</label>
+    <textarea id="bx-obs" placeholder="Opcional"></textarea>
+
+    <button class="btn-primary" style="margin-top:16px;" onclick="salvarBaixa()">💾 Salvar registro</button>
+    <button class="btn-secondary" id="bx-btn-pdf" style="display:none;" onclick="gerarComprovanteBaixa()">📄 Gerar comprovante PDF</button>
+    <button class="btn-secondary" id="bx-btn-cancelar" style="display:none;" onclick="cancelarBaixa()">↩️ Cancelar solicitação (item fica)</button>
+    <button class="btn-secondary" id="bx-btn-desfazer" style="display:none;" onclick="desfazerBaixa()">↩️ Desfazer baixa (item voltou)</button>
+    <button class="btn-secondary" onclick="voltarInicio()">Voltar</button>
+    <div id="status-baixa" class="status-msg"></div>
+  </div>
+
+  <!-- ================= EQUIPE (admin) ================= -->
+  <div id="tela-equipe" class="card" style="display:none;">
+    <h2 class="tit">👥 Equipe e acessos</h2>
+    <div id="lista-equipe"></div>
+    <h2 class="tit" style="margin-top:18px;">Convidar pessoa</h2>
+    <label for="conv-nome">Nome</label>
+    <input type="text" id="conv-nome" placeholder="Nome da pessoa">
+    <label for="conv-email">E-mail</label>
+    <input type="email" id="conv-email" placeholder="email@gmail.com">
+    <label for="conv-papel">Papel</label>
+    <select id="conv-papel">
+      <option value="equipe">Equipe (usa o app)</option>
+      <option value="admin">Administrador (usa o app + gerencia acessos)</option>
+    </select>
+    <button class="btn-primary" style="margin-top:12px;" onclick="convidar()">➕ Convidar</button>
+    <div class="info-linha" style="font-size:11px;margin-top:6px;">Depois do convite, a pessoa abre o app, digita o e-mail e toca em "Primeiro acesso: criar minha senha".</div>
+    <div id="lista-convites" style="margin-top:14px;"></div>
+    <button class="btn-secondary" style="margin-top:14px;" onclick="voltarInicio()">Voltar</button>
+    <div id="status-equipe" class="status-msg"></div>
+  </div>
+
+  <div class="rodape">ESF Flor do Cerrado — Nova Mutum/MT<br>Desenvolvido por antonioresolve.com</div>
+</div>
+
+<script>
+// ===================================================================
+// CONEXÃO COM O SUPABASE (projeto "patrimonio")
+// A chave publicável pode ficar no código: quem não tiver login não
+// consegue ver nem alterar nada (regras de acesso no banco).
+// ===================================================================
+const SUPABASE_URL = 'https://otmwjvtsmtmnvifffhff.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_wyP0F8jQS5N8HcojJn62rA_CagOdg3l';
+const BUCKET = 'patrimonio';
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+let perfil = null;        // {id, nome, papel, unidade_id, unidade_nome}
+let cacheItens = [];      // todos os itens ativos da unidade
+let itemAtual = null;
+let fotoArquivo = null;
+let codeReader = null;
+let baixaAtual = null;
+// Chegou pelo link "criar nova senha" do e-mail?
+let emRecuperacao = /type=recovery/.test(location.hash);
+let iniciando = false;
+
+const TELAS = ['tela-login', 'tela-nova-senha', 'tela-sem-acesso', 'tela-inicial', 'video-wrap', 'tela-progresso',
+  'tela-cadastro', 'tela-sala', 'tela-ficha', 'tela-baixas', 'tela-baixa', 'tela-equipe'];
+function mostrar(id) {
+  TELAS.forEach(function (t) { document.getElementById(t).style.display = (t === id ? 'block' : 'none'); });
+  window.scrollTo(0, 0);
+}
+function $(id) { return document.getElementById(id); }
+function esc(t) { return String(t == null ? '' : t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+function msg(id, texto, tipo) { $(id).innerHTML = texto ? '<span class="status-msg ' + (tipo || '') + '">' + texto + '</span>' : ''; }
+function erroTexto(e) {
+  const m = (e && (e.message || e.error_description || e.msg)) || String(e);
+  if (/Invalid login credentials/i.test(m)) return 'E-mail ou senha incorretos.';
+  if (/Email not confirmed/i.test(m)) return 'Você ainda não confirmou o e-mail. Abra o link que chegou na sua caixa de entrada (veja também o spam).';
+  if (/User already registered/i.test(m)) return 'Este e-mail já tem senha criada. Use "Entrar" ou "Esqueci minha senha".';
+  if (/Password should be at least/i.test(m)) return 'A senha precisa ter pelo menos 6 caracteres.';
+  if (/Failed to fetch|NetworkError/i.test(m)) return 'Sem conexão com a internet.';
+  return m;
+}
+function dataBR(v) {               // "2026-11-18" ou ISO → "18/11/2026"
+  if (!v) return '';
+  const s = String(v);
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (m) return m[3] + '/' + m[2] + '/' + m[1];
+  const d = new Date(s);
+  return isNaN(d) ? s : d.toLocaleDateString('pt-BR');
+}
+function dataHoraBR(v) {
+  if (!v) return '';
+  const d = new Date(v);
+  return isNaN(d) ? String(v) : d.toLocaleDateString('pt-BR') + ' ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+}
+function hojeISO() {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+function normPat(v) {
+  const s = String(v || '').trim().toUpperCase();
+  const m = s.match(/^PAT-?(\d+)$/);
+  return m ? 'PAT-' + m[1].padStart(4, '0') : s;
+}
+
+// ===================================================================
+// LOGIN
+// ===================================================================
+async function entrar() {
+  const email = $('login-email').value.trim().toLowerCase();
+  const senha = $('login-senha').value;
+  if (!email || !senha) { msg('status-login', 'Preencha e-mail e senha.', 'erro'); return; }
+  msg('status-login', 'Entrando...');
+  const { error } = await sb.auth.signInWithPassword({ email: email, password: senha });
+  if (error) msg('status-login', erroTexto(error), 'erro');
+}
+
+async function criarSenha() {
+  const email = $('login-email').value.trim().toLowerCase();
+  const senha = $('login-senha').value;
+  if (!email) { msg('status-login', 'Digite seu e-mail no campo acima.', 'erro'); return; }
+  if (senha.length < 6) { msg('status-login', 'Digite no campo "Senha" a senha que você quer usar (mínimo 6 caracteres).', 'erro'); return; }
+  msg('status-login', 'Criando...');
+  const { data, error } = await sb.auth.signUp({
+    email: email, password: senha,
+    options: { emailRedirectTo: location.origin + location.pathname }
+  });
+  if (error) { msg('status-login', erroTexto(error), 'erro'); return; }
+  if (data.session) return; // confirmação de e-mail desligada: já entrou
+  msg('status-login', '✅ Pronto! Enviamos um e-mail para <b>' + esc(email) + '</b>. Abra o link de confirmação (veja também o spam) e depois volte aqui para entrar.', 'ok');
+}
+
+async function esqueciSenha() {
+  const email = $('login-email').value.trim().toLowerCase();
+  if (!email) { msg('status-login', 'Digite seu e-mail no campo acima e toque de novo em "Esqueci minha senha".', 'erro'); return; }
+  const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: location.origin + location.pathname });
+  if (error) { msg('status-login', erroTexto(error), 'erro'); return; }
+  msg('status-login', '✅ Se esse e-mail estiver cadastrado, chegará um link para criar uma nova senha.', 'ok');
+}
+
+async function salvarNovaSenha() {
+  const s = $('nova-senha').value;
+  if (s.length < 6) { msg('status-nova-senha', 'Mínimo 6 caracteres.', 'erro'); return; }
+  const { error } = await sb.auth.updateUser({ password: s });
+  if (error) { msg('status-nova-senha', erroTexto(error), 'erro'); return; }
+  emRecuperacao = false;
+  msg('status-nova-senha', '✅ Senha alterada!', 'ok');
+  setTimeout(iniciarSessao, 1000);
+}
+
+async function sair() {
+  await sb.auth.signOut();
+  perfil = null; cacheItens = [];
+  $('login-senha').value = '';
+  mostrar('tela-login');
+}
+
+sb.auth.onAuthStateChange(function (evento, sessao) {
+  if (evento === 'PASSWORD_RECOVERY') { emRecuperacao = true; mostrar('tela-nova-senha'); return; }
+  if (evento === 'SIGNED_IN' && !emRecuperacao && !perfil) setTimeout(iniciarSessao, 0);
+});
+
+async function iniciarSessao() {
+  if (emRecuperacao) { mostrar('tela-nova-senha'); return; }
+  if (iniciando || perfil) return;
+  iniciando = true;
+  const { data } = await sb.auth.getSession();
+  if (!data.session) { iniciando = false; mostrar('tela-login'); return; }
+  try {
+    await sb.rpc('aceitar_convite'); // libera quem foi convidado depois de criar a conta
+    const r = await sb.from('perfis').select('id,nome,papel,ativo,unidade_id,unidades(nome)')
+      .eq('id', data.session.user.id).maybeSingle();
+    if (r.error) throw r.error;
+    if (!r.data || !r.data.ativo) { mostrar('tela-sem-acesso'); return; }
+    perfil = {
+      id: r.data.id, nome: r.data.nome || data.session.user.email, papel: r.data.papel,
+      unidade_id: r.data.unidade_id, unidade_nome: r.data.unidades ? r.data.unidades.nome : ''
+    };
+    $('usuario-nome').textContent = perfil.nome;
+    $('usuario-papel').textContent = perfil.papel === 'admin' ? '(administrador)' : '';
+    $('btn-equipe').style.display = perfil.papel === 'admin' ? 'block' : 'none';
+    voltarInicio();
+    carregarItens();
+  } catch (e) {
+    mostrar('tela-login');
+    msg('status-login', 'Erro ao carregar seu perfil: ' + esc(erroTexto(e)), 'erro');
+  } finally {
+    iniciando = false;
+  }
+}
+
+// ===================================================================
+// DADOS
+// ===================================================================
+async function carregarItens() {
+  const todos = [];
+  for (let de = 0; ; de += 1000) {
+    const r = await sb.from('itens').select('*').order('pat').range(de, de + 999);
+    if (r.error) throw r.error;
+    todos.push.apply(todos, r.data);
+    if (r.data.length < 1000) break;
+  }
+  cacheItens = todos;
+  atualizarMiniProgresso();
+  return todos;
+}
+
+function listaSalas() {
+  const s = {};
+  cacheItens.forEach(function (i) { if (i.local_atual) s[i.local_atual.trim()] = true; });
+  return Object.keys(s).sort(function (a, b) { return a.localeCompare(b, 'pt-BR'); });
+}
+
+function preencherSalas(selId, selecionada) {
+  const sel = $(selId);
+  sel.innerHTML = '';
+  const salas = listaSalas();
+  if (selecionada && salas.indexOf(selecionada) === -1) salas.push(selecionada);
+  salas.forEach(function (s) {
+    const o = document.createElement('option');
+    o.value = s; o.textContent = s; if (s === selecionada) o.selected = true;
+    sel.appendChild(o);
+  });
+}
+
+async function urlAssinada(caminho) {
+  if (!caminho) return null;
+  const r = await sb.storage.from(BUCKET).createSignedUrl(caminho, 3600);
+  return r.error ? null : r.data.signedUrl;
+}
+
+// Reduz a foto antes de enviar (1600px, JPEG) — mais rápido e ocupa menos espaço
+function comprimirImagem(arquivo, maxLado) {
+  maxLado = maxLado || 1600;
+  return new Promise(function (resolve) {
+    if (!/^image\//.test(arquivo.type)) { resolve(arquivo); return; }
+    const img = new Image();
+    const url = URL.createObjectURL(arquivo);
+    img.onload = function () {
+      let w = img.width, h = img.height;
+      const f = Math.min(1, maxLado / Math.max(w, h));
+      w = Math.round(w * f); h = Math.round(h * f);
+      const c = document.createElement('canvas'); c.width = w; c.height = h;
+      c.getContext('2d').drawImage(img, 0, 0, w, h);
+      c.toBlob(function (b) { URL.revokeObjectURL(url); resolve(b || arquivo); }, 'image/jpeg', 0.82);
+    };
+    img.onerror = function () { URL.revokeObjectURL(url); resolve(arquivo); };
+    img.src = url;
+  });
+}
+
+async function enviarArquivo(pasta, nomeBase, arquivo) {
+  const blob = await comprimirImagem(arquivo);
+  const ext = /pdf/i.test(arquivo.type) ? '.pdf' : '.jpg';
+  const caminho = perfil.unidade_id + '/' + pasta + '/' + nomeBase + '_' + Date.now() + ext;
+  const r = await sb.storage.from(BUCKET).upload(caminho, blob, {
+    contentType: /pdf/i.test(arquivo.type) ? 'application/pdf' : 'image/jpeg', upsert: false
+  });
+  if (r.error) throw r.error;
+  return caminho;
+}
+
+// ===================================================================
+// LEITOR BLUETOOTH (HID) E CÂMERA
+// ===================================================================
+const inputManual = $('input-manual');
+let digitacaoIniciadaEm = null;
+inputManual.addEventListener('keydown', function (e) {
+  if (e.key === 'Enter' || e.keyCode === 13) { e.preventDefault(); buscarManual(); }
+});
+inputManual.addEventListener('input', function (e) {
+  const v = inputManual.value.trim();
+  if (v.length <= 1) digitacaoIniciadaEm = Date.now();
+  const bulk = e.inputType === 'insertFromPaste' || e.inputType === 'insertFromDrop';
+  const tempo = digitacaoIniciadaEm ? (Date.now() - digitacaoIniciadaEm) : 9999;
+  if ((bulk || tempo < 400) && (/^PAT-\d{3,6}$/i.test(v) || /^\d{4,10}$/.test(v))) setTimeout(buscarManual, 100);
+});
+
+async function iniciarScanner() {
+  $('video-wrap').style.display = 'block';
+  $('status-inicial').innerHTML = '';
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    msg('status-inicial', 'Este navegador não permite usar a câmera aqui. Use a busca manual.', 'erro');
+    pararScanner(); return;
+  }
+  codeReader = new ZXing.BrowserMultiFormatReader();
+  try {
+    await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+    const devices = await codeReader.listVideoInputDevices();
+    if (!devices.length) throw new Error('Nenhuma câmera encontrada.');
+    const device = devices.find(function (d) { return /back|traseira|rear|environment/i.test(d.label); }) || devices[devices.length - 1];
+    codeReader.decodeFromVideoDevice(device.deviceId, 'video-preview', function (result) {
+      if (result) { pararScanner(); buscar(result.getText()); }
+    });
+  } catch (e) {
+    let m = 'Não foi possível acessar a câmera: ' + e.message;
+    if (e.name === 'NotAllowedError') m = 'Permissão de câmera negada. Libere a câmera para este site (cadeado ao lado do endereço) e recarregue.';
+    msg('status-inicial', m, 'erro');
+    pararScanner();
+  }
+}
+function pararScanner() {
+  if (codeReader) { try { codeReader.reset(); } catch (e) {} }
+  $('video-wrap').style.display = 'none';
+}
+function buscarManual() {
+  const v = inputManual.value.trim();
+  if (!v) return;
+  inputManual.value = '';
+  buscar(v);
+}
+
+// ===================================================================
+// BUSCA E FICHA
+// ===================================================================
+async function buscar(codigo) {
+  const bruto = String(codigo).trim();
+  const pat = normPat(bruto);
+  msg('status-inicial', 'Buscando ' + esc(bruto) + '...');
+  try {
+    const r = await sb.from('itens').select('*')
+      .or('pat.eq."' + pat + '",codigo_prefeitura.eq."' + bruto + '"').limit(1);
+    if (r.error) throw r.error;
+    if (r.data.length) { itemAtual = r.data[0]; mostrarFicha(itemAtual); return; }
+    if (await mostrarSeFoiBaixado(pat, bruto)) return;
+    msg('status-inicial', 'Código não encontrado: ' + esc(bruto), 'erro');
+  } catch (e) {
+    msg('status-inicial', 'Erro: ' + esc(erroTexto(e)), 'erro');
+  }
+}
+
+async function mostrarFicha(item) {
+  mostrar('tela-ficha');
+  $('status-ficha').innerHTML = '';
+  $('ficha-descricao').textContent = item.descricao || '(sem descrição)';
+  $('ficha-id').textContent = item.pat;
+  $('ficha-setor-orig').textContent = item.setor_lista_original || '—';
+  $('campo-codigo-prefeitura').value = item.codigo_prefeitura || '';
+  $('ficha-valor').textContent = item.valor_aquisicao
+    ? 'R$ ' + item.valor_aquisicao + (item.data_aquisicao_idade ? ' (' + item.data_aquisicao_idade + ')' : '')
+    : 'não informado';
+  $('ficha-conferencia').innerHTML = (dataHoraBR(item.data_ultima_conferencia) || 'nunca') +
+    (item.conferido_nesta_rodada
+      ? ' <span style="color:var(--verde);">• já conferido nesta rodada</span>'
+      : ' <span style="color:var(--amarelo);">• pendente nesta rodada</span>');
+  const badge = $('badge-status');
+  badge.textContent = item.status_etiqueta || '';
+  badge.className = 'badge ' + (item.status_etiqueta === 'COM CÓDIGO PREFEITURA' ? 'badge-ok'
+    : /DUVIDOSO/.test(item.status_etiqueta || '') ? 'badge-duvidoso' : 'badge-pendente');
+  $('campo-situacao').value = item.situacao || 'BOM';
+  $('campo-idade').value = item.data_aquisicao_idade || '';
+  $('campo-obs').value = item.observacoes || '';
+  $('campo-local-novo').value = '';
+  preencherSalas('campo-local', item.local_atual);
+  fotoArquivo = null;
+  $('campo-foto').value = '';
+  $('foto-nova-preview').style.display = 'none';
+  $('ficha-hist').open = false;
+  $('ficha-hist-lista').innerHTML = '';
+
+  const foto = $('foto-atual');
+  foto.style.display = 'none';
+  if (item.foto_path) {
+    const u = await urlAssinada(item.foto_path);
+    if (u && itemAtual && itemAtual.pat === item.pat) { foto.src = u; foto.style.display = 'block'; }
+  }
+  verificarBaixaNaFicha(item.pat);
+}
+
+function previewFoto(ev) {
+  const f = ev.target.files[0];
+  if (!f) return;
+  fotoArquivo = f;
+  const img = $('foto-nova-preview');
+  img.src = URL.createObjectURL(f);
+  img.style.display = 'block';
+}
+
+async function salvar() {
+  if (!itemAtual) return;
+  const local = $('campo-local-novo').value.trim() || $('campo-local').value;
+  const dados = {
+    local_atual: local,
+    situacao: $('campo-situacao').value,
+    observacoes: $('campo-obs').value,
+    data_aquisicao_idade: $('campo-idade').value,
+    codigo_prefeitura: $('campo-codigo-prefeitura').value.trim() || null,
+    conferido_nesta_rodada: true,
+    data_ultima_conferencia: new Date().toISOString()
+  };
+  msg('status-ficha', 'Salvando...');
+  try {
+    if (fotoArquivo) {
+      msg('status-ficha', 'Enviando a foto...');
+      dados.foto_path = await enviarArquivo('itens', itemAtual.pat, fotoArquivo);
+    }
+    const r = await sb.from('itens').update(dados).eq('id', itemAtual.id).select().single();
+    if (r.error) throw r.error;
+    const i = cacheItens.findIndex(function (x) { return x.id === r.data.id; });
+    if (i >= 0) cacheItens[i] = r.data; else cacheItens.push(r.data);
+    atualizarMiniProgresso();
+    msg('status-ficha', '✅ Conferido e salvo com sucesso!', 'ok');
+    setTimeout(voltarInicio, 1100);
+  } catch (e) {
+    msg('status-ficha', 'Erro ao salvar: ' + esc(erroTexto(e)), 'erro');
+  }
+}
+
+async function carregarHistoricoItem() {
+  if (!itemAtual) return;
+  const div = $('ficha-hist-lista');
+  div.innerHTML = '<div class="info-linha">Carregando...</div>';
+  const r = await sb.from('historico').select('*').eq('pat', itemAtual.pat).order('criado_em', { ascending: false }).limit(60);
+  if (r.error) { div.innerHTML = '<div class="status-msg erro">' + esc(erroTexto(r.error)) + '</div>'; return; }
+  if (!r.data.length) { div.innerHTML = '<div class="info-linha">Nenhuma alteração registrada.</div>'; return; }
+  div.innerHTML = r.data.map(function (h) {
+    const campo = String(h.campo || '').replace(/_/g, ' ').toLowerCase();
+    return '<div class="hist-linha"><b>' + esc(dataHoraBR(h.criado_em)) + '</b> · ' + esc(h.usuario_nome || '—') +
+      '<br>' + esc(campo) + ': ' + (h.valor_anterior ? '<s>' + esc(h.valor_anterior) + '</s> → ' : '') + esc(h.valor_novo) + '</div>';
+  }).join('');
+}
+
+// ===================================================================
+// MINI-PROGRESSO E PROGRESSO
+// ===================================================================
+function contarProgresso() {
+  const porSala = {};
+  let conf = 0;
+  cacheItens.forEach(function (i) {
+    const s = (i.local_atual || '(sem sala)').trim();
+    if (!porSala[s]) porSala[s] = { sala: s, total: 0, conferidos: 0 };
+    porSala[s].total++;
+    if (i.conferido_nesta_rodada) { conf++; porSala[s].conferidos++; }
+  });
+  return {
+    total: cacheItens.length, conferidos: conf, pendentes: cacheItens.length - conf,
+    porSala: Object.values(porSala).sort(function (a, b) { return a.sala.localeCompare(b.sala, 'pt-BR'); })
+  };
+}
+function atualizarMiniProgresso() {
+  if (!cacheItens.length) return;
+  const p = contarProgresso();
+  const pct = Math.round(p.conferidos / p.total * 100);
+  $('mini-progresso-num').textContent = p.conferidos + '/' + p.total + ' conferidos (' + pct + '%)';
+  $('mini-progresso-barra').style.width = pct + '%';
+  $('mini-progresso').style.display = 'block';
+}
+async function abrirProgresso() {
+  mostrar('tela-progresso');
+  $('status-progresso').innerHTML = '';
+  $('btn-nova-rodada').style.display = perfil.papel === 'admin' ? 'block' : 'none';
+  $('resumo-progresso').innerHTML = '<div class="status-msg">Carregando...</div>';
+  $('lista-progresso').innerHTML = '';
+  try { await carregarItens(); } catch (e) {}
+  const p = contarProgresso();
+  const pct = p.total ? Math.round(p.conferidos / p.total * 100) : 0;
+  $('resumo-progresso').innerHTML =
+    '<div class="resumo-caixa">' +
+    '<div><div class="resumo-numero">' + p.total + '</div><div class="resumo-label">TOTAL</div></div>' +
+    '<div><div class="resumo-numero" style="color:var(--verde)">' + p.conferidos + '</div><div class="resumo-label">CONFERIDOS</div></div>' +
+    '<div><div class="resumo-numero" style="color:var(--amarelo)">' + p.pendentes + '</div><div class="resumo-label">PENDENTES</div></div></div>' +
+    '<div class="barra-fundo"><div class="barra-preenchida" style="width:' + pct + '%"></div></div>' +
+    '<div style="text-align:center;font-size:12px;color:var(--cinza);margin-top:4px;">' + pct + '% conferido no geral</div>';
+  $('lista-progresso').innerHTML = p.porSala.map(function (s) {
+    const ps = s.total ? Math.round(s.conferidos / s.total * 100) : 0;
+    return '<div class="linha-progresso-sala"><div class="topo"><span>' + esc(s.sala) + '</span><span>' + s.conferidos + '/' + s.total +
+      '</span></div><div class="barra-fundo"><div class="barra-preenchida" style="width:' + ps + '%"></div></div></div>';
+  }).join('');
+}
+async function novaRodada() {
+  if (!confirm('Iniciar uma NOVA rodada de conferência?\n\nTodos os itens voltam para "pendente". As datas da última conferência e todo o histórico continuam guardados.')) return;
+  msg('status-progresso', 'Iniciando nova rodada...');
+  const r = await sb.rpc('iniciar_nova_rodada');
+  if (r.error) { msg('status-progresso', esc(erroTexto(r.error)), 'erro'); return; }
+  await abrirProgresso();
+  msg('status-progresso', '✅ Nova rodada iniciada (' + r.data + ' itens voltaram para pendente).', 'ok');
+}
+
+// ===================================================================
+// SALAS, RELATÓRIO E ETIQUETAS
+// ===================================================================
+function abrirFiltroSala() {
+  mostrar('tela-sala');
+  $('lista-sala').innerHTML = '';
+  $('status-relatorio').innerHTML = '';
+  preencherSalas('select-sala');
+}
+function itensDaSala(sala) {
+  return cacheItens.filter(function (i) { return (i.local_atual || '').trim() === sala; })
+    .sort(function (a, b) { return String(a.descricao).localeCompare(String(b.descricao), 'pt-BR'); });
+}
+async function listarItensDaSala() {
+  const sala = $('select-sala').value;
+  const div = $('lista-sala');
+  div.innerHTML = '<div class="status-msg">Carregando...</div>';
+  try { await carregarItens(); } catch (e) {}
+  const itens = itensDaSala(sala);
+  if (!itens.length) { div.innerHTML = '<div class="status-msg">Nenhum item nessa sala.</div>'; return; }
+  div.innerHTML = '';
+  itens.forEach(function (item) {
+    const row = document.createElement('div');
+    row.className = 'item-lista';
+    row.innerHTML = '<span class="nome">' + esc(item.descricao) + ' <span style="color:#999">(' + esc(item.pat) + ')</span></span>' +
+      '<span class="tag ' + (item.conferido_nesta_rodada ? 'tag-ok' : 'tag-pendente') + '">' + (item.conferido_nesta_rodada ? 'conferido' : 'pendente') + '</span>';
+    row.onclick = function () { itemAtual = item; mostrarFicha(item); };
+    div.appendChild(row);
+  });
+}
+
+// Janela de impressão aberta JÁ no clique (evita bloqueio de pop-up)
+function abrirJanela(titulo, css) {
+  const w = window.open('', '_blank');
+  if (!w) { alert('O navegador bloqueou a janela. Permita pop-ups para este site.'); return null; }
+  w.document.write('<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + esc(titulo) + '</title><style>' + css +
+    '</style></head><body><div id="conteudo" style="font-family:Arial;padding:20px;">Gerando...</div></body></html>');
+  w.document.close();
+  return w;
+}
+function imprimirQuandoPronto(w) {
+  const imgs = Array.from(w.document.images);
+  let falta = imgs.filter(function (i) { return !i.complete; }).length;
+  const ir = function () { setTimeout(function () { try { w.focus(); w.print(); } catch (e) {} }, 400); };
+  if (!falta) { ir(); return; }
+  imgs.forEach(function (i) { if (!i.complete) i.onload = i.onerror = function () { if (--falta === 0) ir(); }; });
+  setTimeout(ir, 15000); // não espera para sempre
+}
+const LOGO_URL = new URL('logo-nova-mutum.png', location.href).href;
+const CSS_DOC = '@page{size:A4;margin:14mm}body{font-family:Montserrat,Arial,sans-serif;color:#222;font-size:11pt}' +
+  '.cab{display:flex;align-items:center;gap:12px;border-bottom:3px solid #B7D34A;padding-bottom:8px;margin-bottom:14px}' +
+  '.cab img{height:56px}.cab .t1{font-weight:700;color:#0F4B3D;font-size:13pt}.cab .t2{font-size:9pt;color:#555}' +
+  'h1{font-size:15pt;color:#0F4B3D;text-align:center;margin:6px 0}h2{font-size:12pt;color:#0F4B3D;margin:18px 0 6px}' +
+  '.sub{text-align:center;font-size:9pt;color:#666;font-style:italic;margin-bottom:10px}' +
+  'table{width:100%;border-collapse:collapse;font-size:9.5pt}th{background:#0F4B3D;color:#fff;text-align:left;padding:5px}' +
+  'td{border-bottom:1px solid #ddd;padding:4px 5px;vertical-align:top}td.vazio{background:#FFF2CC}' +
+  '.kv td:first-child{width:38%;background:#EEF5DA;font-weight:700}' +
+  '.galeria{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.galeria div{text-align:center;font-size:8pt;break-inside:avoid}' +
+  '.galeria img{width:100%;height:120px;object-fit:contain;background:#f4f4f4}' +
+  '.ass{display:flex;gap:30px;margin-top:50px;text-align:center;font-size:9pt}.ass div{flex:1;border-top:1px solid #333;padding-top:4px}' +
+  '.rod{text-align:center;font-size:7pt;color:#999;margin-top:24px}';
+function cabecalhoDoc() {
+  return '<div class="cab"><img src="' + LOGO_URL + '"><div><div class="t1">PREFEITURA MUNICIPAL DE NOVA MUTUM</div>' +
+    '<div class="t2">Secretaria Municipal de Saúde — ' + esc(perfil.unidade_nome || 'ESF Flor do Cerrado') + '</div></div></div>';
+}
+
+async function gerarRelatorioSala() {
+  const sala = $('select-sala').value;
+  const w = abrirJanela('Relatório ' + sala, CSS_DOC);
+  if (!w) return;
+  try {
+    await carregarItens();
+    const itens = itensDaSala(sala);
+    const comFoto = itens.filter(function (i) { return i.foto_path; });
+    let urls = {};
+    if (comFoto.length) {
+      const r = await sb.storage.from(BUCKET).createSignedUrls(comFoto.map(function (i) { return i.foto_path; }), 3600);
+      if (!r.error) r.data.forEach(function (x) { urls[x.path] = x.signedUrl; });
+    }
+    let h = cabecalhoDoc() + '<h1>Relatório de Patrimônio — ' + esc(sala) + '</h1>' +
+      '<div class="sub">Gerado em ' + dataHoraBR(new Date()) + ' por ' + esc(perfil.nome) + ' — ' + itens.length + ' item(ns)</div>' +
+      '<table><tr><th>Código</th><th>Descrição</th><th>Situação</th><th>Código Prefeitura</th><th>Conferido</th></tr>' +
+      itens.map(function (i) {
+        return '<tr><td>' + esc(i.pat) + '</td><td>' + esc(i.descricao) + '</td><td' + (i.situacao ? '' : ' class="vazio"') + '>' +
+          esc(i.situacao || '—') + '</td><td>' + esc(i.codigo_prefeitura || '—') + '</td><td>' + (i.conferido_nesta_rodada ? 'Sim' : 'Não') + '</td></tr>';
+      }).join('') + '</table>';
+    if (comFoto.length) {
+      h += '<h2 style="page-break-before:always">Galeria de fotos</h2><div class="galeria">' + comFoto.map(function (i) {
+        return '<div><img src="' + esc(urls[i.foto_path] || '') + '"><br><b>' + esc(i.pat) + '</b>' +
+          (i.codigo_prefeitura ? '<br>(Prefeitura: ' + esc(i.codigo_prefeitura) + ')' : '') + '<br>' + esc(String(i.descricao).slice(0, 60)) + '</div>';
+      }).join('') + '</div>';
+    }
+    h += '<p style="text-align:center;margin-top:40px">Nova Mutum/MT, ______ de ____________________ de __________</p>' +
+      '<div class="ass"><div>Responsável pela conferência<br>Nome / Matrícula</div></div>' +
+      '<div class="rod">Desenvolvido por antonioresolve.com</div>';
+    w.document.getElementById('conteudo').innerHTML = h;
+    w.document.getElementById('conteudo').style.padding = '0';
+    imprimirQuandoPronto(w);
+    msg('status-relatorio', '✅ Relatório aberto. Na tela de impressão, escolha "Salvar como PDF" ou a impressora.', 'ok');
+  } catch (e) {
+    w.document.getElementById('conteudo').textContent = 'Erro: ' + erroTexto(e);
+  }
+}
+
+const CSS_ETIQUETAS = '@page{size:A4;margin:8mm}body{margin:0;font-family:Arial,Helvetica,sans-serif}' +
+  '#grade{display:grid;grid-template-columns:repeat(3,1fr)}' +
+  '.etq{border:0.4px solid #ccc;height:34.5mm;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;' +
+  'padding:2mm 2mm 1mm;text-align:center;overflow:hidden;page-break-inside:avoid;break-inside:avoid}' +
+  '.bc svg{height:9mm;max-width:56mm}.pat{font-weight:bold;font-size:10pt;margin-top:0.5mm}' +
+  '.desc{font-size:6pt;line-height:1.25;max-height:6.2mm;overflow:hidden}.sala{font-size:6pt;font-style:italic;color:#333;margin-top:0.8mm}' +
+  '.rodape{font-size:4.5pt;color:#777;margin-top:auto}';
+function svgCodigoBarras(t) {
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  JsBarcode(svg, t, { format: 'CODE128', displayValue: false, height: 38, width: 1.4, margin: 0 });
+  return svg.outerHTML;
+}
+function htmlEtiqueta(pat, desc, sala) {
+  return '<div class="etq"><div class="bc">' + svgCodigoBarras(pat) + '</div><div class="pat">' + esc(pat) + '</div>' +
+    '<div class="desc">' + esc(desc) + '</div><div class="sala">' + esc(sala) + '</div><div class="rodape">' +
+    esc((perfil.unidade_nome || 'ESF FLOR DO CERRADO').toUpperCase()) + '</div></div>';
+}
+function preencherEtiquetas(w, html) {
+  const c = w.document.getElementById('conteudo');
+  c.style.padding = '0';
+  c.innerHTML = '<div id="grade">' + html + '</div>';
+  setTimeout(function () { try { w.focus(); w.print(); } catch (e) {} }, 500);
+}
+function imprimirEtiquetaItem() {
+  if (!itemAtual) return;
+  const w = abrirJanela('Etiqueta ' + itemAtual.pat, CSS_ETIQUETAS);
+  if (!w) return;
+  const sala = $('campo-local-novo').value.trim() || $('campo-local').value || itemAtual.local_atual || '';
+  preencherEtiquetas(w, htmlEtiqueta(itemAtual.pat, itemAtual.descricao || '', sala));
+}
+async function imprimirEtiquetasSala() {
+  const sala = $('select-sala').value;
+  const so = $('chk-etq-conferidos').checked;
+  const w = abrirJanela('Etiquetas ' + sala, CSS_ETIQUETAS);
+  if (!w) return;
+  try { await carregarItens(); } catch (e) {}
+  let itens = itensDaSala(sala);
+  if (so) itens = itens.filter(function (i) { return i.conferido_nesta_rodada; });
+  if (!itens.length) { w.document.getElementById('conteudo').textContent = 'Nenhum item para etiquetar nessa sala.'; return; }
+  preencherEtiquetas(w, itens.map(function (i) { return htmlEtiqueta(i.pat, i.descricao || '', i.local_atual || sala); }).join(''));
+}
+
+// ===================================================================
+// CÓDIGOS LIVRES E CADASTRO
+// ===================================================================
+async function verCodigosLivres() {
+  msg('status-inicial', 'Consultando a sequência...');
+  const r = await sb.rpc('codigos_livres');
+  if (r.error) { msg('status-inicial', esc(erroTexto(r.error)), 'erro'); return; }
+  const livres = r.data.faltantes.length ? '<b>' + r.data.faltantes.join('</b> · <b>') + '</b>' : 'nenhum — sequência completa ✅';
+  $('status-inicial').innerHTML = '<span class="status-msg">Códigos livres (nunca usados): ' + livres +
+    '<br>Próximo código novo: <b>' + r.data.proximo + '</b><br><span style="font-size:11px;color:var(--cinza);">' +
+    'Códigos de itens baixados ficam bloqueados para sempre e não aparecem aqui.</span></span>';
+}
+async function abrirCadastroNovo() {
+  mostrar('tela-cadastro');
+  $('novo-descricao').value = ''; $('novo-obs').value = ''; $('novo-local-novo').value = '';
+  $('status-cadastro').innerHTML = '';
+  preencherSalas('novo-local');
+  const sel = $('novo-codigo');
+  sel.innerHTML = '<option value="">Automático (próximo da sequência)</option>';
+  const r = await sb.rpc('codigos_livres');
+  if (!r.error) {
+    sel.options[0].textContent = 'Automático (próximo: ' + r.data.proximo + ')';
+    r.data.faltantes.forEach(function (c) {
+      const o = document.createElement('option'); o.value = c; o.textContent = 'Reaproveitar ' + c + ' (nunca usado)'; sel.appendChild(o);
+    });
+  }
+}
+async function salvarNovoItem() {
+  const desc = $('novo-descricao').value.trim();
+  if (!desc) { msg('status-cadastro', 'Descreva o item antes de salvar.', 'erro'); return; }
+  msg('status-cadastro', 'Salvando...');
+  const r = await sb.rpc('cadastrar_item', {
+    p_descricao: desc,
+    p_local: $('novo-local-novo').value.trim() || $('novo-local').value,
+    p_situacao: $('novo-situacao').value,
+    p_observacoes: $('novo-obs').value,
+    p_pat_desejado: $('novo-codigo').value || null
+  });
+  if (r.error) { msg('status-cadastro', 'Erro: ' + esc(erroTexto(r.error)), 'erro'); return; }
+  msg('status-cadastro', '✅ Cadastrado como <b>' + esc(r.data) + '</b>! Já dá para imprimir a etiqueta pela ficha dele.', 'ok');
+  carregarItens().catch(function () {});
+  setTimeout(function () { buscar(r.data); }, 1800);
+}
+
+// ===================================================================
+// EXPORTAR (Excel abre arquivos .csv)
+// ===================================================================
+async function exportarInventario() {
+  msg('status-inicial', 'Preparando o arquivo...');
+  try {
+    await carregarItens();
+    const b = await sb.from('baixas').select('*').order('registrado_em');
+    const col = ['pat', 'codigo_prefeitura', 'descricao', 'local_atual', 'situacao', 'status_etiqueta', 'observacoes',
+      'conferido_nesta_rodada', 'data_ultima_conferencia', 'data_aquisicao_idade', 'valor_aquisicao', 'setor_lista_original'];
+    const cab = ['CÓDIGO', 'CÓD. PREFEITURA', 'DESCRIÇÃO', 'SALA', 'SITUAÇÃO', 'ETIQUETA', 'OBSERVAÇÕES', 'CONFERIDO NA RODADA',
+      'ÚLTIMA CONFERÊNCIA', 'AQUISIÇÃO/IDADE', 'VALOR AQUISIÇÃO', 'SETOR ORIGINAL'];
+    const cel = function (v) { return '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"'; };
+    let csv = cab.map(cel).join(';') + '\n' + cacheItens.map(function (i) {
+      return col.map(function (c) {
+        let v = i[c];
+        if (c === 'conferido_nesta_rodada') v = v ? 'SIM' : 'NÃO';
+        if (c === 'data_ultima_conferencia') v = dataHoraBR(v);
+        if (c === 'codigo_prefeitura' && v) v = '="' + v + '"'; // mantém zeros à esquerda no Excel
+        return c === 'codigo_prefeitura' && v ? v : cel(v);
+      }).join(';');
+    }).join('\n');
+    if (!b.error && b.data.length) {
+      csv += '\n\n' + ['BAIXAS / TRANSFERÊNCIAS', '', '', '', '', '', '', '', ''].map(cel).join(';') + '\n' +
+        ['CÓDIGO', 'DESCRIÇÃO', 'ÚLTIMA SALA', 'TIPO', 'SITUAÇÃO', 'SOLICITADA EM', 'MOTIVO', 'DESTINO', 'RETIRADA EM', 'RETIRADO POR', 'Nº TERMO']
+          .map(cel).join(';') + '\n' +
+        b.data.map(function (x) {
+          return [x.pat, x.descricao, x.ultima_sala, x.tipo, x.status, dataBR(x.data_solicitacao), x.motivo, x.destino,
+            dataBR(x.data_retirada), x.retirado_por, x.num_termo_processo].map(cel).join(';');
+        }).join('\n');
+    }
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'Patrimonio_' + (perfil.unidade_nome || 'unidade').replace(/\s+/g, '_') + '_' + hojeISO() + '.csv';
+    document.body.appendChild(a); a.click(); a.remove();
+    msg('status-inicial', '✅ Arquivo baixado (abre no Excel ou no LibreOffice).', 'ok');
+  } catch (e) {
+    msg('status-inicial', 'Erro: ' + esc(erroTexto(e)), 'erro');
+  }
+}
+
+// ===================================================================
+// BAIXAS / TRANSFERÊNCIAS
+// ===================================================================
+function tagStatusBaixa(s) {
+  if (s === 'AGUARDANDO RETIRADA') return '<span class="tag tag-baixa-aguard">aguardando retirada</span>';
+  if (s === 'CONCLUÍDA') return '<span class="tag tag-baixa-ok">baixado</span>';
+  return '<span class="tag tag-baixa-cinza">' + esc(String(s || '').toLowerCase()) + '</span>';
+}
+function resumoBaixaHtml(r) {
+  return '<b>' + esc(r.tipo || 'Baixa') + '</b>' + (r.destino ? ' → ' + esc(r.destino) : '') +
+    '<br>Solicitada em ' + esc(dataBR(r.data_solicitacao) || '—') + (r.solicitante ? ' por ' + esc(r.solicitante) : '') +
+    (r.data_retirada ? '<br>Retirado em ' + esc(dataBR(r.data_retirada)) + ' por ' + esc(r.retirado_por || '—') : '') +
+    (r.motivo ? '<br>Motivo: ' + esc(r.motivo) : '');
+}
+async function baixaAtivaDe(pat) {
+  const r = await sb.from('baixas').select('*').eq('pat', pat).order('registrado_em', { ascending: false });
+  if (r.error || !r.data.length) return { ativa: null, ultima: null };
+  return {
+    ativa: r.data.find(function (b) { return b.status === 'AGUARDANDO RETIRADA' || b.status === 'CONCLUÍDA'; }) || null,
+    ultima: r.data[0]
+  };
+}
+async function verificarBaixaNaFicha(pat) {
+  const aviso = $('ficha-aviso-baixa'), botao = $('btn-ficha-baixa');
+  aviso.style.display = 'none';
+  botao.textContent = '📤 Registrar baixa / transferência';
+  const b = await baixaAtivaDe(pat);
+  if (!itemAtual || itemAtual.pat !== pat) return;
+  if (b.ativa && b.ativa.status === 'AGUARDANDO RETIRADA') {
+    aviso.className = 'aviso-baixa';
+    aviso.innerHTML = '⚠️ <b>Baixa solicitada — aguardando retirada.</b><br>' + resumoBaixaHtml(b.ativa);
+    aviso.style.display = 'block';
+    botao.textContent = '📤 Ver / concluir baixa deste item';
+  }
+}
+async function mostrarSeFoiBaixado(pat, bruto) {
+  const r = await sb.from('baixas').select('*')
+    .or('pat.eq."' + pat + '",codigo_prefeitura.eq."' + bruto + '"').order('registrado_em', { ascending: false }).limit(1);
+  if (r.error || !r.data.length) return false;
+  const b = r.data[0];
+  $('status-inicial').innerHTML = '<div class="aviso-baixa concluida">📦 <b>' + esc(b.pat) + '</b> — ' + esc(b.descricao || '') +
+    '<br>Este patrimônio <b>não está mais na unidade</b> (' + esc(b.status) + ').<br>' + resumoBaixaHtml(b) +
+    '<br><button class="btn-secondary" style="margin-top:8px;" onclick="abrirRegistroBaixa(\'' + esc(b.id) + '\')">Abrir registro de baixa</button></div>';
+  return true;
+}
+async function abrirBaixaDaFicha() {
+  if (!itemAtual) return;
+  const base = { pat: itemAtual.pat, descricao: itemAtual.descricao, ultima_sala: itemAtual.local_atual };
+  prepararFormBaixa(base, null);
+  const b = await baixaAtivaDe(itemAtual.pat);
+  if (b.ativa && baixaAtual && baixaAtual.pat === base.pat) prepararFormBaixa(base, b.ativa);
+}
+async function abrirRegistroBaixa(id) {
+  $('status-inicial').innerHTML = '';
+  const r = await sb.from('baixas').select('*').eq('id', id).single();
+  if (r.error) { alert(erroTexto(r.error)); return; }
+  prepararFormBaixa({ pat: r.data.pat, descricao: r.data.descricao, ultima_sala: r.data.ultima_sala }, r.data);
+}
+function prepararFormBaixa(base, reg) {
+  baixaAtual = { pat: base.pat, descricao: base.descricao, ultima_sala: base.ultima_sala, registro: reg };
+  const r = reg || {};
+  mostrar('tela-baixa');
+  $('status-baixa').innerHTML = '';
+  $('bx-id').textContent = base.pat;
+  $('bx-desc').textContent = base.descricao || '—';
+  $('bx-sala').textContent = base.ultima_sala || '—';
+  $('bx-status').textContent = r.status || 'NOVO';
+  $('bx-tipo').value = r.tipo || '';
+  $('bx-data-sol').value = r.data_solicitacao || hojeISO();
+  $('bx-solicitante').value = r.solicitante || '';
+  $('bx-motivo').value = r.motivo || '';
+  $('bx-destino').value = r.destino || '';
+  $('bx-data-ret').value = r.data_retirada || '';
+  $('bx-retirado-por').value = r.retirado_por || '';
+  $('bx-matricula').value = r.matricula_retirada || '';
+  $('bx-num-termo').value = r.num_termo_processo || '';
+  $('bx-sistema').value = r.baixa_sistema_prefeitura || '';
+  $('bx-obs').value = r.obs || '';
+  $('bx-termo').value = ''; $('bx-foto-ret').value = '';
+  const concluida = r.status === 'CONCLUÍDA';
+  const encerrada = r.status === 'CANCELADA' || r.status === 'DESFEITA (ITEM VOLTOU)';
+  $('bx-concluir').checked = concluida;
+  $('bx-concluir').disabled = concluida || encerrada;
+  $('bx-termo-atual').innerHTML = r.termo_path
+    ? '<span class="anexo-link" onclick="abrirAnexo(\'' + esc(r.termo_path) + '\')">📎 Ver termo anexado</span> <span style="font-size:11px;color:#999">(anexar outro substitui)</span>' : '';
+  $('bx-foto-atual').innerHTML = '';
+  if (r.foto_retirada_path) urlAssinada(r.foto_retirada_path).then(function (u) {
+    if (u) $('bx-foto-atual').innerHTML = '<img class="foto-preview" src="' + esc(u) + '">';
+  });
+  $('bx-btn-pdf').style.display = reg ? 'block' : 'none';
+  $('bx-btn-cancelar').style.display = r.status === 'AGUARDANDO RETIRADA' ? 'block' : 'none';
+  $('bx-btn-desfazer').style.display = concluida ? 'block' : 'none';
+  ajustarCamposBaixa();
+}
+async function abrirAnexo(caminho) {
+  const w = window.open('', '_blank');
+  const u = await urlAssinada(caminho);
+  if (u && w) w.location = u; else if (w) w.close();
+}
+function ajustarCamposBaixa() {
+  $('bx-bloco-destino').style.display = /TRANSFER|DEVOLU|OUTRO/.test($('bx-tipo').value) ? 'block' : 'none';
+  const c = $('bx-concluir').checked;
+  $('bx-bloco-retirada').style.display = c ? 'block' : 'none';
+  if (c && !$('bx-data-ret').value) $('bx-data-ret').value = hojeISO();
+}
+async function salvarBaixa() {
+  if (!baixaAtual) return;
+  const tipo = $('bx-tipo').value, motivo = $('bx-motivo').value.trim();
+  const jaConcluida = baixaAtual.registro && baixaAtual.registro.status === 'CONCLUÍDA';
+  const concluir = $('bx-concluir').checked && !$('bx-concluir').disabled;
+  if (!tipo) { msg('status-baixa', 'Escolha o tipo.', 'erro'); return; }
+  if (!motivo) { msg('status-baixa', 'Descreva o motivo.', 'erro'); return; }
+  if (concluir) {
+    if (!$('bx-data-ret').value || !$('bx-retirado-por').value.trim()) {
+      msg('status-baixa', 'Para concluir, informe a data da retirada e quem retirou.', 'erro'); return;
+    }
+    if (!confirm('Confirmar que ' + baixaAtual.pat + ' JÁ SAIU da unidade?\n\nEle sairá da lista ativa e o código ficará bloqueado para sempre.')) return;
+  }
+  const p = {
+    pat: baixaAtual.pat, tipo: tipo, motivo: motivo,
+    data_solicitacao: $('bx-data-sol').value, solicitante: $('bx-solicitante').value.trim(),
+    destino: $('bx-bloco-destino').style.display === 'none' ? '' : $('bx-destino').value.trim(),
+    num_termo_processo: $('bx-num-termo').value.trim(), baixa_sistema_prefeitura: $('bx-sistema').value,
+    obs: $('bx-obs').value.trim(), concluir: concluir
+  };
+  if (concluir || jaConcluida) {
+    p.data_retirada = $('bx-data-ret').value; p.retirado_por = $('bx-retirado-por').value.trim();
+    p.matricula_retirada = $('bx-matricula').value.trim();
+  }
+  msg('status-baixa', 'Salvando... (anexos podem demorar alguns segundos)');
+  try {
+    const termo = $('bx-termo').files[0], foto = $('bx-foto-ret').files[0];
+    if (termo) p.termo_path = await enviarArquivo('baixas', baixaAtual.pat + '_TERMO', termo);
+    if (foto) p.foto_retirada_path = await enviarArquivo('baixas', baixaAtual.pat + '_RETIRADA', foto);
+    const r = await sb.rpc('registrar_baixa', { p: p });
+    if (r.error) throw r.error;
+    const reg = r.data.registro;
+    prepararFormBaixa({ pat: reg.pat, descricao: reg.descricao, ultima_sala: reg.ultima_sala }, reg);
+    msg('status-baixa', '✅ ' + (r.data.removidoDaLista ? 'Baixa concluída! O item saiu da lista ativa.'
+      : r.data.novo ? 'Solicitação registrada. O item continua na lista até ser retirado.' : 'Registro atualizado.'), 'ok');
+    if (r.data.removidoDaLista) carregarItens().catch(function () {});
+  } catch (e) {
+    msg('status-baixa', 'Erro: ' + esc(erroTexto(e)), 'erro');
+  }
+}
+async function cancelarBaixa() {
+  const m = prompt('Cancelar a solicitação de baixa de ' + baixaAtual.pat + '? O item continua na unidade.\n\nMotivo (opcional):', '');
+  if (m === null) return;
+  const r = await sb.rpc('cancelar_baixa', { p_pat: baixaAtual.pat, p_motivo: m });
+  if (r.error) { msg('status-baixa', esc(erroTexto(r.error)), 'erro'); return; }
+  msg('status-baixa', '✅ Solicitação cancelada. O item continua na lista ativa.', 'ok');
+  setTimeout(voltarInicio, 1600);
+}
+async function desfazerBaixa() {
+  const m = prompt('Desfazer a baixa de ' + baixaAtual.pat + '? O item VOLTA para a lista ativa.\n\nMotivo:', '');
+  if (m === null) return;
+  const r = await sb.rpc('desfazer_baixa', { p_pat: baixaAtual.pat, p_motivo: m });
+  if (r.error) { msg('status-baixa', esc(erroTexto(r.error)), 'erro'); return; }
+  msg('status-baixa', '✅ ' + esc(r.data), 'ok');
+  carregarItens().catch(function () {});
+  setTimeout(voltarInicio, 2000);
+}
+async function gerarComprovanteBaixa() {
+  if (!baixaAtual || !baixaAtual.registro) return;
+  const w = abrirJanela('Baixa ' + baixaAtual.pat, CSS_DOC);
+  if (!w) return;
+  const r = (await sb.from('baixas').select('*').eq('id', baixaAtual.registro.id).single()).data || baixaAtual.registro;
+  const fotoItem = await urlAssinada(r.foto_item_path), fotoRet = await urlAssinada(r.foto_retirada_path);
+  const linhas = [
+    ['Patrimônio (PAT)', r.pat], ['Código da prefeitura', r.codigo_prefeitura || '—'], ['Descrição', r.descricao || '—'],
+    ['Última sala', r.ultima_sala || '—'], ['Tipo', r.tipo], ['Situação do registro', r.status],
+    ['Data da solicitação', dataBR(r.data_solicitacao) || '—'], ['Solicitado por', r.solicitante || '—'], ['Motivo', r.motivo],
+    ['Destino', r.destino || '—'], ['Data da retirada', dataBR(r.data_retirada) || '—'],
+    ['Retirado por', (r.retirado_por || '—') + (r.matricula_retirada ? ' (matrícula ' + r.matricula_retirada + ')' : '')],
+    ['Nº do termo / processo', r.num_termo_processo || '—'], ['Termo anexado', r.termo_path ? 'Sim (arquivo digital no sistema)' : 'Não'],
+    ['Baixa no sistema da prefeitura', r.baixa_sistema_prefeitura || '—'], ['Observações', r.obs || '—']
+  ];
+  let h = cabecalhoDoc() + '<h1>Registro de Baixa / Transferência de Patrimônio</h1>' +
+    '<div class="sub">Emitido em ' + dataHoraBR(new Date()) + ' por ' + esc(perfil.nome) + '</div>' +
+    '<table class="kv">' + linhas.map(function (l) { return '<tr><td>' + esc(l[0]) + '</td><td>' + esc(l[1]) + '</td></tr>'; }).join('') + '</table>';
+  if (fotoItem || fotoRet) {
+    h += '<h2>Fotos</h2><div class="galeria">' +
+      (fotoItem ? '<div><img src="' + esc(fotoItem) + '" style="height:180px"><br>Foto do item</div>' : '') +
+      (fotoRet ? '<div><img src="' + esc(fotoRet) + '" style="height:180px"><br>Foto da retirada</div>' : '') + '</div>';
+  }
+  h += '<div class="ass"><div>Responsável pela unidade<br>Nome / Matrícula</div><div>Quem retirou o patrimônio<br>' +
+    esc(r.retirado_por || 'Nome / Matrícula') + '</div></div><div class="rod">Desenvolvido por antonioresolve.com</div>';
+  const c = w.document.getElementById('conteudo');
+  c.style.padding = '0'; c.innerHTML = h;
+  imprimirQuandoPronto(w);
+}
+async function abrirListaBaixas() { mostrar('tela-baixas'); carregarListaBaixas(); }
+async function carregarListaBaixas() {
+  const div = $('lista-baixas');
+  div.innerHTML = '<div class="status-msg">Carregando...</div>';
+  let q = sb.from('baixas').select('*').order('registrado_em', { ascending: false });
+  const f = $('filtro-baixas').value;
+  if (f) q = q.eq('status', f);
+  const r = await q;
+  if (r.error) { div.innerHTML = '<div class="status-msg erro">' + esc(erroTexto(r.error)) + '</div>'; return; }
+  if (!r.data.length) { div.innerHTML = '<div class="status-msg">Nenhum registro aqui.</div>'; return; }
+  div.innerHTML = '';
+  r.data.forEach(function (b) {
+    const row = document.createElement('div');
+    row.className = 'item-lista';
+    row.innerHTML = '<span class="nome">' + esc(b.descricao) + ' <span style="color:#999">(' + esc(b.pat) + ')</span><br>' +
+      '<span style="font-size:11px;color:var(--cinza)">' + esc(b.tipo) + (b.destino ? ' → ' + esc(b.destino) : '') + ' · ' +
+      esc(dataBR(b.data_retirada || b.data_solicitacao)) + '</span></span>' + tagStatusBaixa(b.status);
+    row.onclick = function () { prepararFormBaixa({ pat: b.pat, descricao: b.descricao, ultima_sala: b.ultima_sala }, b); };
+    div.appendChild(row);
+  });
+}
+
+// ===================================================================
+// EQUIPE (só administradores)
+// ===================================================================
+async function abrirEquipe() {
+  mostrar('tela-equipe');
+  $('status-equipe').innerHTML = '';
+  $('conv-nome').value = ''; $('conv-email').value = '';
+  const [eq, cv] = await Promise.all([sb.rpc('equipe_da_unidade'), sb.from('convites').select('*').order('nome')]);
+  const pessoas = eq.data || [];
+  const emailsComConta = {};
+  pessoas.forEach(function (p) { emailsComConta[String(p.email).toLowerCase()] = true; });
+  $('lista-equipe').innerHTML = pessoas.length ? pessoas.map(function (p) {
+    return '<div class="pessoa"><b>' + esc(p.nome) + '</b>' + (p.id === perfil.id ? ' (você)' : '') +
+      '<div class="info-linha">' + esc(p.email) + ' · ' + (p.ativo ? '✅ ativo' : '⛔ desativado') + '</div>' +
+      '<div class="linha"><input type="text" id="nome-' + p.id + '" value="' + esc(p.nome) + '">' +
+      '<select id="papel-' + p.id + '"><option value="equipe"' + (p.papel === 'equipe' ? ' selected' : '') + '>Equipe</option>' +
+      '<option value="admin"' + (p.papel === 'admin' ? ' selected' : '') + '>Administrador</option></select></div>' +
+      '<div class="linha"><button class="btn-primary" onclick="salvarPessoa(\'' + p.id + '\')">Salvar</button>' +
+      (p.id === perfil.id ? '' : '<button class="btn-secondary" onclick="alternarAtivo(\'' + p.id + '\',' + !p.ativo + ')">' +
+        (p.ativo ? 'Desativar acesso' : 'Reativar acesso') + '</button>') + '</div></div>';
+  }).join('') : '<div class="info-linha">Ninguém entrou no app ainda.</div>';
+  const pendentes = (cv.data || []).filter(function (c) { return !emailsComConta[String(c.email).toLowerCase()]; });
+  $('lista-convites').innerHTML = pendentes.length ? '<div style="font-size:13px;font-weight:600;color:var(--azul);margin-bottom:6px;">Convites aguardando o primeiro acesso</div>' +
+    pendentes.map(function (c) {
+      return '<div class="item-lista" style="cursor:default"><span class="nome">' + esc(c.nome) + '<br><span style="font-size:11px;color:var(--cinza)">' +
+        esc(c.email) + ' · ' + (c.papel === 'admin' ? 'Administrador' : 'Equipe') + '</span></span>' +
+        '<button class="btn-secondary" style="width:auto;margin:0;padding:6px 10px;font-size:12px" onclick="removerConvite(\'' + esc(c.email) + '\')">Remover</button></div>';
+    }).join('') : '';
+}
+async function convidar() {
+  const nome = $('conv-nome').value.trim(), email = $('conv-email').value.trim().toLowerCase();
+  if (!nome || !/^\S+@\S+\.\S+$/.test(email)) { msg('status-equipe', 'Preencha nome e um e-mail válido.', 'erro'); return; }
+  const r = await sb.from('convites').upsert({ email: email, nome: nome, papel: $('conv-papel').value, unidade_id: perfil.unidade_id });
+  if (r.error) { msg('status-equipe', esc(erroTexto(r.error)), 'erro'); return; }
+  await abrirEquipe();
+  msg('status-equipe', '✅ Convite criado. Avise ' + esc(nome) + ' para abrir o app e tocar em "Primeiro acesso: criar minha senha".', 'ok');
+}
+async function removerConvite(email) {
+  if (!confirm('Remover o convite de ' + email + '?')) return;
+  await sb.from('convites').delete().eq('email', email);
+  abrirEquipe();
+}
+async function salvarPessoa(id) {
+  const dados = { nome: $('nome-' + id).value.trim(), papel: $('papel-' + id).value };
+  if (id === perfil.id && dados.papel !== 'admin' && !confirm('Você vai tirar o SEU acesso de administrador. Continuar?')) return;
+  const r = await sb.from('perfis').update(dados).eq('id', id);
+  if (r.error) { msg('status-equipe', esc(erroTexto(r.error)), 'erro'); return; }
+  if (id === perfil.id) { perfil.nome = dados.nome; perfil.papel = dados.papel; $('usuario-nome').textContent = dados.nome; }
+  await abrirEquipe();
+  msg('status-equipe', '✅ Salvo.', 'ok');
+}
+async function alternarAtivo(id, ativo) {
+  if (!ativo && !confirm('Desativar o acesso desta pessoa? Ela não conseguirá mais entrar (o histórico dela continua guardado).')) return;
+  const r = await sb.from('perfis').update({ ativo: ativo }).eq('id', id);
+  if (r.error) { msg('status-equipe', esc(erroTexto(r.error)), 'erro'); return; }
+  abrirEquipe();
+}
+
+// ===================================================================
+function voltarInicio() {
+  itemAtual = null; baixaAtual = null;
+  pararScanner();
+  mostrar('tela-inicial');
+  inputManual.value = '';
+  $('status-inicial').innerHTML = '';
+  atualizarMiniProgresso();
+}
+
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(function () {});
+iniciarSessao();
+</script>
+</body>
+</html>
