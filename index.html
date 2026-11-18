@@ -144,6 +144,27 @@
       font-size: 12px; color: var(--cinza); margin-bottom: 3px;
     }
     #mini-progresso .topo b { color: var(--azul); }
+
+    /* ---------- Baixas / transferências ---------- */
+    .btn-baixa { background: #fdecea; color: var(--vermelho); margin-top: 8px; font-weight: 600; }
+    .aviso-baixa {
+      background: #FFF2CC; border-left: 4px solid var(--amarelo);
+      padding: 10px; border-radius: 6px; font-size: 13px; margin: 8px 0;
+    }
+    .aviso-baixa.concluida { background: #fdecea; border-left-color: var(--vermelho); }
+    .bloco-retirada {
+      border: 1px dashed #bbb; border-radius: 8px; padding: 4px 12px 12px; margin-top: 12px;
+    }
+    .linha-check { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 13px; color: #333; margin-top: 14px; }
+    .linha-check input { width: auto; transform: scale(1.3); }
+    input[type=date] {
+      width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #ccc;
+      font-size: 16px; font-family: inherit; background: #fff;
+    }
+    .tag-baixa-aguard { background: #FFF2CC; color: var(--amarelo); }
+    .tag-baixa-ok { background: #fdecea; color: var(--vermelho); }
+    .tag-baixa-cinza { background: #eee; color: #777; }
+    .anexo-link { display: inline-block; margin-top: 6px; font-size: 13px; color: var(--azul); font-weight: 600; }
   </style>
 </head>
 <body>
@@ -169,6 +190,7 @@
     <button class="btn-secondary" style="margin-top:10px;" onclick="abrirProgresso()">📊 Ver progresso da conferência</button>
     <button class="btn-secondary" style="margin-top:10px;" onclick="ordenarPlanilha()">🗂️ Organizar planilha por sala</button>
     <button class="btn-secondary" style="margin-top:10px;" onclick="verCodigosLivres()">🔢 Códigos livres na sequência</button>
+    <button class="btn-secondary" style="margin-top:10px;" onclick="abrirListaBaixas()">📦 Baixados / transferidos</button>
 
     <!-- Mini-resumo automático da conferência (carrega sozinho ao abrir o app) -->
     <div id="mini-progresso">
@@ -226,6 +248,93 @@
     <div id="lista-sala" style="margin-top:14px;"></div>
   </div>
 
+  <!-- LISTA DE BAIXAS -->
+  <div id="tela-baixas" class="card" style="display:none;">
+    <h2 style="font-size:16px;color:var(--azul);margin-top:0;">Patrimônios baixados / transferidos</h2>
+    <label for="filtro-baixas">Mostrar</label>
+    <select id="filtro-baixas" onchange="carregarListaBaixas()">
+      <option value="">Todos os registros</option>
+      <option value="AGUARDANDO RETIRADA">Aguardando retirada</option>
+      <option value="CONCLUÍDA">Concluídos (já saíram da unidade)</option>
+      <option value="CANCELADA">Cancelados</option>
+      <option value="DESFEITA (ITEM VOLTOU)">Desfeitos (item voltou)</option>
+    </select>
+    <div id="lista-baixas" style="margin-top:12px;"></div>
+    <button class="btn-secondary" style="margin-top:14px;" onclick="voltarInicio()">Voltar</button>
+  </div>
+
+  <!-- FORMULÁRIO DE BAIXA / TRANSFERÊNCIA -->
+  <div id="tela-baixa" class="card" style="display:none;">
+    <h2 style="font-size:16px;color:var(--vermelho);margin-top:0;">Baixa / transferência</h2>
+    <div style="font-size:14px;"><b id="bx-id">—</b> — <span id="bx-desc">—</span></div>
+    <div class="info-linha">Última sala: <b id="bx-sala">—</b> · Situação do registro: <b id="bx-status">NOVO</b></div>
+
+    <label for="bx-tipo">Tipo</label>
+    <select id="bx-tipo" onchange="ajustarCamposBaixa()">
+      <option value="">— escolha —</option>
+      <option>DESCARTE</option>
+      <option>TRANSFERÊNCIA PARA OUTRO ESTABELECIMENTO</option>
+      <option>DEVOLUÇÃO AO ALMOXARIFADO / PATRIMÔNIO</option>
+      <option>FURTO / EXTRAVIO</option>
+      <option>OUTRO</option>
+    </select>
+
+    <label for="bx-data-sol">Data da solicitação</label>
+    <input type="date" id="bx-data-sol">
+
+    <label for="bx-solicitante">Quem solicitou</label>
+    <input type="text" id="bx-solicitante" placeholder="Nome (e cargo, se quiser)">
+
+    <label for="bx-motivo">Motivo</label>
+    <textarea id="bx-motivo" placeholder="Ex: quebrado sem conserto; remanejado para a ESF Jardim; obsoleto..."></textarea>
+
+    <div id="bx-bloco-destino">
+      <label for="bx-destino">Destino (para onde foi)</label>
+      <input type="text" id="bx-destino" placeholder="Ex: ESF Jardim / Almoxarifado central">
+    </div>
+
+    <label class="linha-check"><input type="checkbox" id="bx-concluir" onchange="ajustarCamposBaixa()"> O item já foi retirado da unidade</label>
+    <div class="info-linha" style="font-size:11px;">Ao salvar com esta opção marcada, o item sai da lista ativa e fica guardado na aba BAIXAS.</div>
+
+    <div id="bx-bloco-retirada" class="bloco-retirada" style="display:none;">
+      <label for="bx-data-ret">Data da retirada</label>
+      <input type="date" id="bx-data-ret">
+      <label for="bx-retirado-por">Nome de quem retirou</label>
+      <input type="text" id="bx-retirado-por" placeholder="Nome completo">
+      <label for="bx-matricula">Matrícula / documento de quem retirou</label>
+      <input type="text" id="bx-matricula" placeholder="Opcional">
+    </div>
+
+    <label for="bx-num-termo">Nº do termo de transferência / processo</label>
+    <input type="text" id="bx-num-termo" placeholder="Opcional">
+
+    <label for="bx-termo">Anexar termo (PDF ou foto do papel)</label>
+    <input type="file" id="bx-termo" accept="application/pdf,image/*">
+    <div id="bx-termo-atual"></div>
+
+    <label for="bx-foto-ret">Foto do momento da retirada</label>
+    <input type="file" id="bx-foto-ret" accept="image/*" capture="environment">
+    <div id="bx-foto-atual"></div>
+
+    <label for="bx-sistema">Baixa já feita no sistema da prefeitura?</label>
+    <select id="bx-sistema">
+      <option value="">— não informado —</option>
+      <option>NÃO</option>
+      <option>SIM</option>
+      <option>NÃO SE APLICA</option>
+    </select>
+
+    <label for="bx-obs">Observações</label>
+    <textarea id="bx-obs" placeholder="Opcional"></textarea>
+
+    <button class="btn-primary" style="margin-top:16px;" onclick="salvarBaixa()">💾 Salvar registro</button>
+    <button class="btn-secondary" id="bx-btn-pdf" style="display:none;" onclick="gerarComprovanteBaixa()">📄 Gerar comprovante PDF</button>
+    <button class="btn-secondary" id="bx-btn-cancelar" style="display:none;" onclick="cancelarBaixa()">↩️ Cancelar solicitação (item fica)</button>
+    <button class="btn-secondary" id="bx-btn-desfazer" style="display:none;" onclick="desfazerBaixa()">↩️ Desfazer baixa (item voltou)</button>
+    <button class="btn-secondary" onclick="voltarInicio()">Voltar</button>
+    <div id="status-baixa" class="status-msg"></div>
+  </div>
+
   <div id="video-wrap" class="card">
     <video id="video-preview" autoplay muted playsinline></video>
     <button class="btn-danger" onclick="pararScanner()">Cancelar leitura</button>
@@ -238,6 +347,7 @@
     <div class="info-linha">Setor original da lista: <b id="ficha-setor-orig"></b></div>
     <div class="info-linha">Valor de aquisição: <b id="ficha-valor"></b></div>
     <div class="info-linha">Última conferência: <b id="ficha-conferencia">—</b></div>
+    <div id="ficha-aviso-baixa" class="aviso-baixa" style="display:none;"></div>
 
     <label for="campo-codigo-prefeitura">Código da prefeitura (etiqueta oficial, quando chegar)</label>
     <input type="text" id="campo-codigo-prefeitura" placeholder="Ex: 0006249 (mantém os zeros à esquerda)">
@@ -270,6 +380,7 @@
 
     <button class="btn-primary" style="margin-top:16px;" onclick="salvar()">✅ Salvar e marcar como conferido</button>
     <button class="btn-secondary" onclick="imprimirEtiquetaItem()">🏷️ Imprimir etiqueta deste item</button>
+    <button class="btn-baixa" id="btn-ficha-baixa" onclick="abrirBaixaDaFicha()">📤 Registrar baixa / transferência</button>
     <button class="btn-secondary" onclick="voltarInicio()">Cancelar / escanear outro</button>
 
     <div id="status-ficha" class="status-msg"></div>
@@ -701,6 +812,8 @@ async function buscar(codigo) {
   try {
     const resp = await apiGet({ action: 'buscar', codigo: codigo });
     if (!resp.ok) {
+      // Não está na lista ativa: será que foi baixado/transferido?
+      if (await mostrarSeFoiBaixado(codigo)) return;
       document.getElementById('status-inicial').innerHTML =
         '<span class="status-msg erro">' + resp.erro + '</span>';
       return;
@@ -775,6 +888,8 @@ function mostrarFicha(item) {
   } else {
     fotoAtual.style.display = 'none';
   }
+
+  verificarBaixaNaFicha(item.ID_INTERNO);
 }
 
 async function carregarSetores(localAtual) {
@@ -862,9 +977,322 @@ function voltarInicio() {
   document.getElementById('tela-sala').style.display = 'none';
   document.getElementById('tela-cadastro').style.display = 'none';
   document.getElementById('tela-progresso').style.display = 'none';
+  document.getElementById('tela-baixas').style.display = 'none';
+  document.getElementById('tela-baixa').style.display = 'none';
+  baixaAtual = null;
   document.getElementById('tela-inicial').style.display = 'block';
   document.getElementById('input-manual').value = '';
   document.getElementById('status-inicial').innerHTML = '';
+}
+
+// ===================================================================
+// BAIXAS / TRANSFERÊNCIAS
+// ===================================================================
+// Fluxo: na ficha do item → "Registrar baixa / transferência" → formulário.
+// Enquanto o item não sai da unidade, o registro fica "AGUARDANDO RETIRADA"
+// e o item continua na lista ativa. Quando marcar "o item já foi retirado",
+// ele sai da lista ativa e fica guardado na aba BAIXAS da planilha.
+// O código PAT de um item baixado NUNCA volta a ser oferecido como livre.
+let baixaAtual = null; // { ID_INTERNO, DESCRICAO_ITEM, ULTIMA_SALA, registro? }
+
+function dataParaBR(iso) {            // "2026-11-18" → "18/11/2026"
+  const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  return m ? m[3] + '/' + m[2] + '/' + m[1] : String(iso || '');
+}
+function dataParaISO(br) {            // "18/11/2026" (ou "18/11/2026 10:00") → "2026-11-18"
+  const m = String(br || '').match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+  return m ? m[3] + '-' + m[2] + '-' + m[1] : '';
+}
+function hojeISO() {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+
+function lerArquivoBase64(input) {
+  return new Promise(function (resolve, reject) {
+    const f = input.files && input.files[0];
+    if (!f) return resolve(null);
+    const r = new FileReader();
+    r.onload = function (e) {
+      resolve({ base64: e.target.result.split(',')[1], mimeType: f.type || 'application/octet-stream', nome: f.name });
+    };
+    r.onerror = function () { reject(new Error('Não foi possível ler o arquivo ' + f.name)); };
+    r.readAsDataURL(f);
+  });
+}
+
+function tagStatusBaixa(status) {
+  if (status === 'AGUARDANDO RETIRADA') return '<span class="tag tag-baixa-aguard">aguardando retirada</span>';
+  if (status === 'CONCLUÍDA') return '<span class="tag tag-baixa-ok">baixado</span>';
+  return '<span class="tag tag-baixa-cinza">' + esc(String(status || '').toLowerCase()) + '</span>';
+}
+
+function resumoBaixaHtml(r) {
+  return '<b>' + esc(r.TIPO_BAIXA || 'Baixa') + '</b>' +
+    (r.DESTINO ? ' → ' + esc(r.DESTINO) : '') +
+    '<br>Solicitada em ' + esc(r.DATA_SOLICITACAO || '—') + (r.SOLICITANTE ? ' por ' + esc(r.SOLICITANTE) : '') +
+    (r.DATA_RETIRADA ? '<br>Retirado em ' + esc(r.DATA_RETIRADA) + ' por ' + esc(r.RETIRADO_POR || '—') : '') +
+    (r.MOTIVO ? '<br>Motivo: ' + esc(r.MOTIVO) : '');
+}
+
+// Na ficha: avisa se o item já tem baixa em aberto
+async function verificarBaixaNaFicha(id) {
+  const aviso = document.getElementById('ficha-aviso-baixa');
+  const botao = document.getElementById('btn-ficha-baixa');
+  aviso.style.display = 'none';
+  botao.textContent = '📤 Registrar baixa / transferência';
+  try {
+    const resp = await apiGet({ action: 'baixaBuscar', codigo: id });
+    if (!itemAtual || itemAtual.ID_INTERNO !== id) return; // usuário já mudou de item
+    if (resp.ok && resp.registro && resp.registro.STATUS_BAIXA === 'AGUARDANDO RETIRADA') {
+      aviso.className = 'aviso-baixa';
+      aviso.innerHTML = '⚠️ <b>Baixa solicitada — aguardando retirada.</b><br>' + resumoBaixaHtml(resp.registro);
+      aviso.style.display = 'block';
+      botao.textContent = '📤 Ver / concluir baixa deste item';
+    }
+  } catch (e) { /* silencioso: não atrapalha a conferência */ }
+}
+
+// Busca de um código que não está mais na lista ativa
+async function mostrarSeFoiBaixado(codigo) {
+  try {
+    const resp = await apiGet({ action: 'baixaBuscar', codigo: codigo });
+    if (!resp.ok || !resp.registro || resp.naListaAtiva) return false;
+    const r = resp.registro;
+    const st = document.getElementById('status-inicial');
+    st.innerHTML =
+      '<div class="aviso-baixa concluida" style="text-align:left;">' +
+      '📦 <b>' + esc(r.ID_INTERNO) + '</b> — ' + esc(r.DESCRICAO_ITEM || '') +
+      '<br>Este patrimônio <b>não está mais na unidade</b> (' + esc(r.STATUS_BAIXA) + ').<br>' +
+      resumoBaixaHtml(r) +
+      '<br><button class="btn-secondary" style="margin-top:8px;" onclick="abrirRegistroBaixa(\'' + esc(r.ID_INTERNO) + '\')">Abrir registro de baixa</button>' +
+      '</div>';
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+// ---------- Abrir o formulário ----------
+function abrirBaixaDaFicha() {
+  if (!itemAtual) return;
+  const base = {
+    ID_INTERNO: itemAtual.ID_INTERNO,
+    DESCRICAO_ITEM: itemAtual.DESCRICAO_ITEM || '',
+    ULTIMA_SALA: itemAtual.LOCAL_ATUAL || ''
+  };
+  document.getElementById('tela-ficha').style.display = 'none';
+  prepararFormBaixa(base, null);
+  // Se já existe solicitação em aberto, carrega os dados dela
+  apiGet({ action: 'baixaBuscar', codigo: base.ID_INTERNO }).then(function (resp) {
+    if (resp.ok && resp.registro && resp.registro.STATUS_BAIXA === 'AGUARDANDO RETIRADA' &&
+        baixaAtual && baixaAtual.ID_INTERNO === base.ID_INTERNO) {
+      prepararFormBaixa(base, resp.registro);
+    }
+  }).catch(function () {});
+}
+
+async function abrirRegistroBaixa(id) {
+  document.getElementById('tela-inicial').style.display = 'none';
+  document.getElementById('tela-baixas').style.display = 'none';
+  document.getElementById('status-inicial').innerHTML = '';
+  prepararFormBaixa({ ID_INTERNO: id, DESCRICAO_ITEM: 'carregando...', ULTIMA_SALA: '' }, null);
+  try {
+    const resp = await apiGet({ action: 'baixaBuscar', codigo: id });
+    if (!resp.ok) throw new Error(resp.erro);
+    const r = resp.registro;
+    prepararFormBaixa({ ID_INTERNO: r.ID_INTERNO, DESCRICAO_ITEM: r.DESCRICAO_ITEM, ULTIMA_SALA: r.ULTIMA_SALA }, r);
+  } catch (err) {
+    document.getElementById('status-baixa').innerHTML = '<span class="status-msg erro">Erro: ' + esc(err.message) + '</span>';
+  }
+}
+
+function prepararFormBaixa(base, reg) {
+  baixaAtual = Object.assign({}, base, { registro: reg });
+  const r = reg || {};
+  document.getElementById('tela-baixa').style.display = 'block';
+  document.getElementById('status-baixa').innerHTML = '';
+  document.getElementById('bx-id').textContent = base.ID_INTERNO;
+  document.getElementById('bx-desc').textContent = base.DESCRICAO_ITEM || '—';
+  document.getElementById('bx-sala').textContent = base.ULTIMA_SALA || '—';
+  document.getElementById('bx-status').textContent = r.STATUS_BAIXA || 'NOVO';
+
+  document.getElementById('bx-tipo').value = r.TIPO_BAIXA || '';
+  document.getElementById('bx-data-sol').value = dataParaISO(r.DATA_SOLICITACAO) || hojeISO();
+  document.getElementById('bx-solicitante').value = r.SOLICITANTE || '';
+  document.getElementById('bx-motivo').value = r.MOTIVO || '';
+  document.getElementById('bx-destino').value = r.DESTINO || '';
+  document.getElementById('bx-data-ret').value = dataParaISO(r.DATA_RETIRADA) || '';
+  document.getElementById('bx-retirado-por').value = r.RETIRADO_POR || '';
+  document.getElementById('bx-matricula').value = r.MATRICULA_RETIRADA || '';
+  document.getElementById('bx-num-termo').value = r.NUM_TERMO_PROCESSO || '';
+  document.getElementById('bx-sistema').value = r.BAIXA_SISTEMA_PREFEITURA || '';
+  document.getElementById('bx-obs').value = r.OBS_BAIXA || '';
+  document.getElementById('bx-termo').value = '';
+  document.getElementById('bx-foto-ret').value = '';
+
+  const concluida = r.STATUS_BAIXA === 'CONCLUÍDA';
+  const encerrada = r.STATUS_BAIXA === 'CANCELADA' || r.STATUS_BAIXA === 'DESFEITA (ITEM VOLTOU)';
+  const chk = document.getElementById('bx-concluir');
+  chk.checked = concluida;
+  chk.disabled = concluida || encerrada;
+
+  document.getElementById('bx-termo-atual').innerHTML = r.TERMO_LINK
+    ? '<a class="anexo-link" href="' + esc(r.TERMO_LINK) + '" target="_blank">📎 Ver termo anexado</a> <span style="font-size:11px;color:#999">(anexar outro substitui o link)</span>'
+    : '';
+  document.getElementById('bx-foto-atual').innerHTML = r.FOTO_RETIRADA_LINK
+    ? '<img class="foto-preview" src="' + esc(r.FOTO_RETIRADA_LINK) + '">'
+    : '';
+
+  document.getElementById('bx-btn-pdf').style.display = reg ? 'block' : 'none';
+  document.getElementById('bx-btn-cancelar').style.display = r.STATUS_BAIXA === 'AGUARDANDO RETIRADA' ? 'block' : 'none';
+  document.getElementById('bx-btn-desfazer').style.display = concluida ? 'block' : 'none';
+  ajustarCamposBaixa();
+}
+
+function ajustarCamposBaixa() {
+  const tipo = document.getElementById('bx-tipo').value;
+  const mostraDestino = /TRANSFER|DEVOLU|OUTRO/.test(tipo);
+  document.getElementById('bx-bloco-destino').style.display = mostraDestino ? 'block' : 'none';
+  const concluir = document.getElementById('bx-concluir').checked;
+  document.getElementById('bx-bloco-retirada').style.display = concluir ? 'block' : 'none';
+  if (concluir && !document.getElementById('bx-data-ret').value) {
+    document.getElementById('bx-data-ret').value = hojeISO();
+  }
+}
+
+// ---------- Salvar ----------
+async function salvarBaixa() {
+  if (!baixaAtual) return;
+  const st = document.getElementById('status-baixa');
+  const tipo = document.getElementById('bx-tipo').value;
+  const motivo = document.getElementById('bx-motivo').value.trim();
+  const concluir = document.getElementById('bx-concluir').checked &&
+                   !document.getElementById('bx-concluir').disabled;
+  if (!tipo) { st.innerHTML = '<span class="status-msg erro">Escolha o tipo.</span>'; return; }
+  if (!motivo) { st.innerHTML = '<span class="status-msg erro">Descreva o motivo.</span>'; return; }
+  if (concluir) {
+    if (!document.getElementById('bx-data-ret').value || !document.getElementById('bx-retirado-por').value.trim()) {
+      st.innerHTML = '<span class="status-msg erro">Para concluir, informe a data da retirada e quem retirou.</span>';
+      return;
+    }
+    if (!confirm('Confirmar que ' + baixaAtual.ID_INTERNO + ' JÁ SAIU da unidade?\n\nEle sairá da lista ativa e ficará guardado na aba BAIXAS.')) return;
+  }
+
+  const payload = {
+    ID_INTERNO: baixaAtual.ID_INTERNO,
+    TIPO_BAIXA: tipo,
+    DATA_SOLICITACAO: dataParaBR(document.getElementById('bx-data-sol').value),
+    SOLICITANTE: document.getElementById('bx-solicitante').value.trim(),
+    MOTIVO: motivo,
+    DESTINO: document.getElementById('bx-bloco-destino').style.display === 'none' ? '' : document.getElementById('bx-destino').value.trim(),
+    DATA_RETIRADA: dataParaBR(document.getElementById('bx-data-ret').value),
+    RETIRADO_POR: document.getElementById('bx-retirado-por').value.trim(),
+    MATRICULA_RETIRADA: document.getElementById('bx-matricula').value.trim(),
+    NUM_TERMO_PROCESSO: document.getElementById('bx-num-termo').value.trim(),
+    BAIXA_SISTEMA_PREFEITURA: document.getElementById('bx-sistema').value,
+    OBS_BAIXA: document.getElementById('bx-obs').value.trim(),
+    CONCLUIR: concluir
+  };
+  // Se não está concluindo agora, não grava retirada pela metade
+  if (!concluir && !(baixaAtual.registro && baixaAtual.registro.STATUS_BAIXA === 'CONCLUÍDA')) {
+    payload.DATA_RETIRADA = ''; payload.RETIRADO_POR = ''; payload.MATRICULA_RETIRADA = '';
+  }
+
+  st.innerHTML = 'Salvando... (anexos podem demorar alguns segundos)';
+  try {
+    payload.termo = await lerArquivoBase64(document.getElementById('bx-termo'));
+    payload.fotoRetirada = await lerArquivoBase64(document.getElementById('bx-foto-ret'));
+    const resp = await apiPost('baixaRegistrar', payload);
+    if (!resp.ok) throw new Error(resp.erro || 'Falha ao salvar.');
+    const r = resp.registro;
+    prepararFormBaixa({ ID_INTERNO: r.ID_INTERNO, DESCRICAO_ITEM: r.DESCRICAO_ITEM, ULTIMA_SALA: r.ULTIMA_SALA }, r);
+    document.getElementById('status-baixa').innerHTML = '<span class="status-msg ok">✅ ' +
+      (resp.removidoDaLista
+        ? 'Baixa concluída! O item saiu da lista ativa e está guardado na aba BAIXAS.'
+        : (resp.novo ? 'Solicitação registrada. O item continua na lista até ser retirado.' : 'Registro atualizado.')) +
+      '</span>';
+    if (resp.removidoDaLista) atualizarMiniProgresso();
+  } catch (err) {
+    st.innerHTML = '<span class="status-msg erro">Erro: ' + esc(err.message) + '</span>';
+  }
+}
+
+async function cancelarBaixa() {
+  if (!baixaAtual) return;
+  const motivo = prompt('Cancelar a solicitação de baixa de ' + baixaAtual.ID_INTERNO + '?\nO item continua na unidade.\n\nMotivo do cancelamento (opcional):', '');
+  if (motivo === null) return;
+  const st = document.getElementById('status-baixa');
+  st.innerHTML = 'Cancelando...';
+  try {
+    const resp = await apiPost('baixaCancelar', { ID_INTERNO: baixaAtual.ID_INTERNO, motivo: motivo });
+    if (!resp.ok) throw new Error(resp.erro);
+    st.innerHTML = '<span class="status-msg ok">✅ Solicitação cancelada. O item continua na lista ativa.</span>';
+    setTimeout(voltarInicio, 1800);
+  } catch (err) {
+    st.innerHTML = '<span class="status-msg erro">Erro: ' + esc(err.message) + '</span>';
+  }
+}
+
+async function desfazerBaixa() {
+  if (!baixaAtual) return;
+  const motivo = prompt('Desfazer a baixa de ' + baixaAtual.ID_INTERNO + '?\nO item VOLTA para a lista ativa, com os dados que tinha antes.\n\nMotivo (ex: transferência não aconteceu):', '');
+  if (motivo === null) return;
+  const st = document.getElementById('status-baixa');
+  st.innerHTML = 'Devolvendo o item à lista ativa...';
+  try {
+    const resp = await apiPost('baixaDesfazer', { ID_INTERNO: baixaAtual.ID_INTERNO, motivo: motivo });
+    if (!resp.ok) throw new Error(resp.erro);
+    st.innerHTML = '<span class="status-msg ok">✅ ' + esc(resp.msg || 'Baixa desfeita.') + '</span>';
+    atualizarMiniProgresso();
+    setTimeout(voltarInicio, 2200);
+  } catch (err) {
+    st.innerHTML = '<span class="status-msg erro">Erro: ' + esc(err.message) + '</span>';
+  }
+}
+
+async function gerarComprovanteBaixa() {
+  if (!baixaAtual) return;
+  const st = document.getElementById('status-baixa');
+  st.innerHTML = 'Gerando o comprovante em PDF...';
+  try {
+    const resp = await apiPost('baixaRelatorio', { ID_INTERNO: baixaAtual.ID_INTERNO });
+    if (!resp.ok) throw new Error(resp.erro || 'Falha ao gerar PDF.');
+    st.innerHTML = '<a href="' + esc(resp.url) + '" target="_blank" style="color:var(--azul);font-weight:bold;">✅ Comprovante pronto — toque aqui para abrir</a>';
+  } catch (err) {
+    st.innerHTML = '<span class="status-msg erro">Erro: ' + esc(err.message) + '</span>';
+  }
+}
+
+// ---------- Lista de baixas ----------
+function abrirListaBaixas() {
+  document.getElementById('tela-inicial').style.display = 'none';
+  document.getElementById('tela-baixas').style.display = 'block';
+  carregarListaBaixas();
+}
+
+async function carregarListaBaixas() {
+  const div = document.getElementById('lista-baixas');
+  div.innerHTML = '<div class="status-msg">Carregando...</div>';
+  try {
+    const resp = await apiGet({ action: 'baixasListar', status: document.getElementById('filtro-baixas').value });
+    if (!resp.ok) throw new Error(resp.erro);
+    if (!resp.baixas.length) { div.innerHTML = '<div class="status-msg">Nenhum registro aqui ainda.</div>'; return; }
+    div.innerHTML = '';
+    resp.baixas.forEach(function (r) {
+      const row = document.createElement('div');
+      row.className = 'item-lista';
+      row.innerHTML =
+        '<span class="nome">' + esc(r.DESCRICAO_ITEM) + ' <span style="color:#999">(' + esc(r.ID_INTERNO) + ')</span>' +
+        '<br><span style="font-size:11px;color:var(--cinza)">' + esc(r.TIPO_BAIXA || '') +
+        (r.DESTINO ? ' → ' + esc(r.DESTINO) : '') + ' · ' + esc(r.DATA_RETIRADA || r.DATA_SOLICITACAO || '') + '</span></span>' +
+        tagStatusBaixa(r.STATUS_BAIXA);
+      row.onclick = function () { abrirRegistroBaixa(r.ID_INTERNO); };
+      div.appendChild(row);
+    });
+  } catch (err) {
+    div.innerHTML = '<div class="status-msg erro">Erro: ' + esc(err.message) + '</div>';
+  }
 }
 
 if ('serviceWorker' in navigator) {
