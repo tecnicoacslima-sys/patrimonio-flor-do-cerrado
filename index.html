@@ -1,19 +1,11 @@
 <!--
-  APP LEITOR DE PATRIMÔNIO — ESF FLOR DO CERRADO (versão hospedada / GitHub Pages)
-
-  Esta versão NÃO roda dentro do Apps Script — ela é uma página comum, hospedada
-  fora (ex: GitHub Pages), que conversa com o Apps Script por trás dos panos via
-  fetch(). Isso evita o iframe interno do Apps Script, que no iPhone bloqueia a
-  abertura do teclado nos campos de texto.
-
-  ANTES DE USAR:
-  1. Troque APPS_SCRIPT_URL abaixo pela URL do seu Apps Script (.../exec)
-  2. Renomeie este arquivo para "index.html" ao subir no GitHub
-  3. O Apps Script (AppPatrimonio_Code.gs) precisa estar com a versão mais
-     recente implantada (a que tem doGet(e) com "action" e doPost(e))
+  APP DE PATRIMÔNIO — ESF FLOR DO CERRADO (versão Supabase)
+  Página hospedada no GitHub Pages que conversa direto com o banco Supabase
+  (projeto "patrimonio"). Login individual por e-mail e senha.
+  Desenvolvido por antonioresolve.com
 -->
 <!DOCTYPE html>
-<html>
+<html lang="pt-BR">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -26,109 +18,63 @@
   <meta name="theme-color" content="#0F4B3D">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
   <script src="https://unpkg.com/@zxing/library@0.20.0/umd/index.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
   <style>
     :root {
-      --azul: #0F4B3D;
-      --azul-escuro: #0B3A2F;
-      --lima: #B7D34A;
-      --verde: #2e7d32;
-      --amarelo: #b8860b;
-      --vermelho: #c0392b;
-      --cinza: #666;
+      --azul: #0F4B3D; --azul-escuro: #0B3A2F; --lima: #B7D34A;
+      --verde: #2e7d32; --amarelo: #b8860b; --vermelho: #c0392b; --cinza: #666;
     }
     * { box-sizing: border-box; }
-    body {
-      font-family: 'Montserrat', Arial, Helvetica, sans-serif;
-      margin: 0; padding: 0;
-      background: #f4f6f9;
-      color: #222;
-    }
+    body { font-family: 'Montserrat', Arial, Helvetica, sans-serif; margin: 0; background: #f4f6f9; color: #222; }
     header {
-      background: var(--azul);
-      color: #fff;
-      padding: 14px 16px;
-      text-align: center;
-      position: sticky; top: 0; z-index: 10;
+      background: var(--azul); color: #fff; padding: 12px 16px; position: sticky; top: 0; z-index: 10;
       display: flex; align-items: center; justify-content: center; gap: 10px;
     }
     header img { height: 40px; width: auto; }
     header h1 { font-size: 17px; margin: 0; }
     header p { font-size: 12px; margin: 2px 0 0; opacity: .85; }
-
     .container { padding: 16px; max-width: 480px; margin: 0 auto; }
-
-    .card {
-      background: #fff;
-      border-radius: 10px;
-      padding: 16px;
-      box-shadow: 0 1px 3px rgba(0,0,0,.12);
-      margin-bottom: 16px;
-    }
-
-    button {
-      font-family: inherit;
-      font-size: 15px;
-      border: none;
-      border-radius: 8px;
-      padding: 13px 16px;
-      cursor: pointer;
-      width: 100%;
-    }
+    .card { background: #fff; border-radius: 10px; padding: 16px; box-shadow: 0 1px 3px rgba(0,0,0,.12); margin-bottom: 16px; }
+    h2.tit { font-size: 16px; color: var(--azul); margin: 0 0 10px; }
+    button { font-family: inherit; font-size: 15px; border: none; border-radius: 8px; padding: 13px 16px; cursor: pointer; width: 100%; }
     .btn-primary { background: var(--azul); color: #fff; }
     .btn-secondary { background: #eee; color: #333; margin-top: 8px; }
     .btn-danger { background: var(--vermelho); color: #fff; }
+    .btn-baixa { background: #fdecea; color: var(--vermelho); margin-top: 8px; font-weight: 600; }
+    .btn-link { background: none; color: var(--azul); text-decoration: underline; padding: 8px; font-size: 13px; }
     button:disabled { opacity: .5; }
-
-    #video-wrap { display: none; margin-bottom: 12px; }
-    #video-preview { width: 100%; border-radius: 10px; background: #000; }
-
+    #video-wrap { display: none; }
+    #video-preview { width: 100%; border-radius: 10px; background: #000; margin-bottom: 8px; }
     .manual-busca { display: flex; gap: 8px; margin-top: 10px; }
-    .manual-busca input {
-      flex: 1; padding: 10px; border-radius: 8px; border: 1px solid #ccc;
-      font-size: 16px; /* 16px+ evita zoom automático do Safari ao focar */
-    }
-    .manual-busca button { width: auto; padding: 10px 14px; }
-
+    .manual-busca input { flex: 1; padding: 10px; border-radius: 8px; border: 1px solid #ccc; font-size: 16px; }
+    .manual-busca button { width: auto; padding: 10px 14px; margin-top: 0; }
     .ficha h2 { font-size: 18px; margin: 0 0 4px; color: var(--azul); }
-    .badge {
-      display: inline-block; font-size: 11px; font-weight: bold;
-      padding: 3px 8px; border-radius: 20px; margin-bottom: 10px;
-    }
+    .badge { display: inline-block; font-size: 11px; font-weight: bold; padding: 3px 8px; border-radius: 20px; margin-bottom: 10px; }
     .badge-ok { background: #E2EFDA; color: var(--verde); }
     .badge-pendente { background: #FFF2CC; color: var(--amarelo); }
     .badge-duvidoso { background: #F8CBAD; color: var(--vermelho); }
-
     label { display: block; font-size: 12px; color: var(--cinza); margin: 12px 0 4px; font-weight: bold; }
-    select, textarea, input[type=text] {
-      width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #ccc;
-      font-size: 16px; font-family: inherit;
+    select, textarea, input[type=text], input[type=email], input[type=password], input[type=date] {
+      width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #ccc; font-size: 16px; font-family: inherit; background: #fff;
     }
     textarea { min-height: 60px; resize: vertical; }
-
-    .foto-preview {
-      width: 100%; max-height: 220px; object-fit: contain;
-      border-radius: 8px; margin-top: 8px; background: #f0f0f0;
-    }
-
+    .foto-preview { width: 100%; max-height: 220px; object-fit: contain; border-radius: 8px; margin-top: 8px; background: #f0f0f0; }
     .status-msg { text-align: center; padding: 10px; font-size: 14px; }
     .status-msg.erro { color: var(--vermelho); }
     .status-msg.ok { color: var(--verde); font-weight: bold; }
-
     .info-linha { font-size: 13px; color: var(--cinza); margin-top: 2px; }
     .rodape { text-align: center; font-size: 11px; color: #999; margin-top: 20px; }
-
-    .item-lista {
-      display: flex; justify-content: space-between; align-items: center;
-      padding: 10px 4px; border-bottom: 1px solid #eee; cursor: pointer;
-    }
+    .item-lista { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 10px 4px; border-bottom: 1px solid #eee; cursor: pointer; }
     .item-lista:last-child { border-bottom: none; }
     .item-lista .nome { font-size: 14px; }
-    .item-lista .tag { font-size: 10px; padding: 2px 7px; border-radius: 10px; font-weight: bold; }
+    .tag { font-size: 10px; padding: 2px 7px; border-radius: 10px; font-weight: bold; white-space: nowrap; }
     .tag-ok { background: #E2EFDA; color: var(--verde); }
     .tag-pendente { background: #FFF2CC; color: var(--amarelo); }
-
+    .tag-baixa-aguard { background: #FFF2CC; color: var(--amarelo); }
+    .tag-baixa-ok { background: #fdecea; color: var(--vermelho); }
+    .tag-baixa-cinza { background: #eee; color: #777; }
     .barra-fundo { background: #eee; border-radius: 8px; height: 10px; overflow: hidden; margin-top: 4px; }
     .barra-preenchida { background: var(--lima); height: 100%; border-radius: 8px; }
     .linha-progresso-sala { padding: 8px 4px; border-bottom: 1px solid #eee; }
@@ -136,35 +82,69 @@
     .resumo-numero { font-size: 32px; font-weight: bold; color: var(--azul); }
     .resumo-caixa { display: flex; justify-content: space-around; text-align: center; margin-bottom: 10px; }
     .resumo-label { font-size: 11px; color: var(--cinza); }
-
-    /* Mini-resumo de progresso na tela inicial */
     #mini-progresso { margin-top: 16px; display: none; }
-    #mini-progresso .topo {
-      display: flex; justify-content: space-between;
-      font-size: 12px; color: var(--cinza); margin-bottom: 3px;
-    }
+    #mini-progresso .topo { display: flex; justify-content: space-between; font-size: 12px; color: var(--cinza); margin-bottom: 3px; }
     #mini-progresso .topo b { color: var(--azul); }
-
-    /* ---------- Baixas / transferências ---------- */
-    .btn-baixa { background: #fdecea; color: var(--vermelho); margin-top: 8px; font-weight: 600; }
-    .aviso-baixa {
-      background: #FFF2CC; border-left: 4px solid var(--amarelo);
-      padding: 10px; border-radius: 6px; font-size: 13px; margin: 8px 0;
-    }
+    .aviso-baixa { background: #FFF2CC; border-left: 4px solid var(--amarelo); padding: 10px; border-radius: 6px; font-size: 13px; margin: 8px 0; text-align: left; }
     .aviso-baixa.concluida { background: #fdecea; border-left-color: var(--vermelho); }
-    .bloco-retirada {
-      border: 1px dashed #bbb; border-radius: 8px; padding: 4px 12px 12px; margin-top: 12px;
-    }
+    .bloco-retirada { border: 1px dashed #bbb; border-radius: 8px; padding: 4px 12px 12px; margin-top: 12px; }
     .linha-check { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 13px; color: #333; margin-top: 14px; }
     .linha-check input { width: auto; transform: scale(1.3); }
-    input[type=date] {
-      width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #ccc;
-      font-size: 16px; font-family: inherit; background: #fff;
+    .anexo-link { display: inline-block; margin-top: 6px; font-size: 13px; color: var(--azul); font-weight: 600; cursor: pointer; }
+    .usuario-barra { display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: var(--cinza); margin-bottom: 12px; }
+    .usuario-barra button { width: auto; padding: 6px 10px; font-size: 12px; margin: 0; background: #eee; }
+    details.hist summary { cursor: pointer; font-size: 13px; color: var(--azul); font-weight: 600; margin-top: 14px; }
+    .hist-linha { font-size: 12px; border-bottom: 1px solid #eee; padding: 6px 0; }
+    .hist-linha b { color: var(--azul); }
+    .item-lista.cod-ok { background: #E2EFDA; border-radius: 6px; margin-bottom: 3px; border-bottom: none; padding: 9px 8px; }
+    .item-lista.cod-falta { background: #FCE4D6; border-radius: 6px; margin-bottom: 3px; border-bottom: none; padding: 9px 8px; }
+    .legenda { display: flex; gap: 12px; font-size: 11px; color: var(--cinza); margin: 8px 0; flex-wrap: wrap; }
+    .legenda span::before { content: ''; display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; vertical-align: -1px; }
+    .legenda .lg-ok::before { background: #A9D08E; }
+    .legenda .lg-falta::before { background: #F4B183; }
+    .menu-botoes { margin-top: 10px; }
+
+    /* ===== COMPUTADOR / TELA LARGA =====
+       No celular nada muda. A partir de 900px, vira layout de site. */
+    @media (min-width: 900px) {
+      header { justify-content: flex-start; padding: 12px 32px; }
+      header img { height: 46px; }
+      header h1 { font-size: 20px; }
+      .container { max-width: 1180px; padding: 24px 32px; }
+      .card { padding: 24px 28px; }
+      #tela-login, #tela-nova-senha, #tela-sem-acesso { max-width: 440px; margin: 40px auto 16px; }
+      /* Início: busca em destaque e botões em grade */
+      #tela-inicial .usuario-barra { font-size: 13px; }
+      #tela-inicial > .btn-primary { max-width: 420px; }
+      #tela-inicial .manual-busca { max-width: 720px; }
+      .menu-botoes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 18px; }
+      .menu-botoes button { margin: 0; min-height: 64px; font-size: 15px; text-align: left; padding: 14px 18px; }
+      .menu-botoes button[style*="display: none"], .menu-botoes button[style*="display:none"] { display: none; }
+      #mini-progresso { max-width: 720px; }
+      /* Ficha em duas colunas: foto e dados à esquerda, campos à direita */
+      .ficha-colunas { display: grid; grid-template-columns: 5fr 6fr; gap: 32px; align-items: start; }
+      .foto-preview { max-height: 420px; }
+      /* Listas em duas colunas */
+      #lista-sala, #lista-baixas, #lista-equipe { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 16px; }
+      #lista-sala > .info-linha, #lista-sala > .legenda, #lista-sala > .status-msg { grid-column: 1 / -1; }
+      #lista-sem-codigo details { break-inside: avoid; }
+      #lista-sem-codigo { column-count: 2; column-gap: 24px; }
+      #lista-progresso { display: grid; grid-template-columns: 1fr 1fr; gap: 0 28px; }
+      /* Formulários com largura confortável */
+      #tela-cadastro, #tela-baixa, #tela-unificar { max-width: 820px; margin-left: auto; margin-right: auto; }
+      #tela-sala > select, #tela-sala > button, #tela-sala > label { max-width: 520px; }
+      #video-wrap { max-width: 640px; margin-left: auto; margin-right: auto; }
+      .btn-secondary, .btn-primary, .btn-baixa { transition: filter .15s; }
+      button:hover { filter: brightness(0.95); }
     }
-    .tag-baixa-aguard { background: #FFF2CC; color: var(--amarelo); }
-    .tag-baixa-ok { background: #fdecea; color: var(--vermelho); }
-    .tag-baixa-cinza { background: #eee; color: #777; }
-    .anexo-link { display: inline-block; margin-top: 6px; font-size: 13px; color: var(--azul); font-weight: 600; }
+    @media (min-width: 1300px) {
+      .menu-botoes { grid-template-columns: repeat(4, 1fr); }
+    }
+
+    .pessoa { border: 1px solid #eee; border-radius: 8px; padding: 10px; margin-bottom: 8px; }
+    .pessoa .linha { display: flex; gap: 6px; margin-top: 6px; }
+    .pessoa .linha > * { flex: 1; }
+    .pessoa button { margin-top: 0; padding: 8px; font-size: 13px; }
   </style>
 </head>
 <body>
@@ -179,54 +159,92 @@
 
 <div class="container">
 
-  <div id="tela-inicial" class="card">
+  <!-- ================= LOGIN ================= -->
+  <div id="tela-login" class="card" style="display:none;">
+    <h2 class="tit">Entrar</h2>
+    <label for="login-email">E-mail</label>
+    <input type="email" id="login-email" autocomplete="username" placeholder="seu@email.com">
+    <label for="login-senha">Senha</label>
+    <input type="password" id="login-senha" autocomplete="current-password">
+    <button class="btn-primary" style="margin-top:14px;" onclick="entrar()">Entrar</button>
+    <button class="btn-secondary" onclick="criarSenha()">Primeiro acesso: criar minha senha</button>
+    <button class="btn-link" onclick="esqueciSenha()">Esqueci minha senha</button>
+    <div id="status-login" class="status-msg"></div>
+  </div>
+
+  <!-- ================= NOVA SENHA (link do e-mail) ================= -->
+  <div id="tela-nova-senha" class="card" style="display:none;">
+    <h2 class="tit">Criar nova senha</h2>
+    <label for="nova-senha">Nova senha (mínimo 6 caracteres)</label>
+    <input type="password" id="nova-senha" autocomplete="new-password">
+    <button class="btn-primary" style="margin-top:14px;" onclick="salvarNovaSenha()">Salvar nova senha</button>
+    <div id="status-nova-senha" class="status-msg"></div>
+  </div>
+
+  <!-- ================= SEM ACESSO ================= -->
+  <div id="tela-sem-acesso" class="card" style="display:none;">
+    <h2 class="tit">Acesso não liberado</h2>
+    <p style="font-size:14px;">Seu e-mail ainda não foi cadastrado pela administração da unidade, ou o acesso foi desativado. Peça para um administrador te convidar em <b>👥 Equipe</b>.</p>
+    <button class="btn-secondary" onclick="sair()">Sair</button>
+  </div>
+
+  <!-- ================= INÍCIO ================= -->
+  <div id="tela-inicial" class="card" style="display:none;">
+    <div class="usuario-barra">
+      <span>👤 <b id="usuario-nome">—</b> <span id="usuario-papel"></span></span>
+      <button onclick="sair()">Sair</button>
+    </div>
     <button class="btn-primary" onclick="iniciarScanner()">📷 Escanear código de barras</button>
     <div class="manual-busca">
       <input type="text" id="input-manual" placeholder="Aponte o leitor Bluetooth aqui ou digite o código">
       <button class="btn-secondary" onclick="buscarManual()">Buscar</button>
     </div>
-    <button class="btn-secondary" style="margin-top:10px;" onclick="abrirFiltroSala()">🏷️ Ver itens por sala</button>
-    <button class="btn-secondary" style="margin-top:10px;" onclick="abrirCadastroNovo()">➕ Cadastrar item novo (sem código ainda)</button>
-    <button class="btn-secondary" style="margin-top:10px;" onclick="abrirProgresso()">📊 Ver progresso da conferência</button>
-    <button class="btn-secondary" style="margin-top:10px;" onclick="ordenarPlanilha()">🗂️ Organizar planilha por sala</button>
-    <button class="btn-secondary" style="margin-top:10px;" onclick="verCodigosLivres()">🔢 Códigos livres na sequência</button>
-    <button class="btn-secondary" style="margin-top:10px;" onclick="abrirListaBaixas()">📦 Baixados / transferidos</button>
-
-    <!-- Mini-resumo automático da conferência (carrega sozinho ao abrir o app) -->
-    <div id="mini-progresso">
-      <div class="topo">
-        <span>Conferência da rodada</span>
-        <b id="mini-progresso-num">—</b>
-      </div>
-      <div class="barra-fundo"><div id="mini-progresso-barra" class="barra-preenchida" style="width:0%"></div></div>
+    <div class="menu-botoes">
+      <button class="btn-secondary" onclick="abrirFiltroSala()">🏷️ Ver itens por sala</button>
+      <button class="btn-secondary" onclick="abrirCadastroNovo()">➕ Cadastrar item novo (sem código ainda)</button>
+      <button class="btn-secondary" onclick="abrirProgresso()">📊 Ver progresso da conferência</button>
+      <button class="btn-secondary" onclick="abrirSemCodigo()">🟠 Sem código da prefeitura</button>
+      <button class="btn-secondary" onclick="verCodigosLivres()">🔢 Códigos livres na sequência</button>
+      <button class="btn-secondary" onclick="abrirListaBaixas()">📦 Baixados / transferidos</button>
+      <button class="btn-secondary" onclick="exportarInventario()">📥 Baixar inventário (Excel)</button>
+      <button class="btn-secondary" id="btn-duplicados" style="display:none;" onclick="abrirDuplicados()">🔍 Possíveis duplicados</button>
+      <button class="btn-secondary" id="btn-equipe" style="display:none;" onclick="abrirEquipe()">👥 Equipe (acessos)</button>
     </div>
 
+    <div id="mini-progresso">
+      <div class="topo"><span>Conferência da rodada</span><b id="mini-progresso-num">—</b></div>
+      <div class="barra-fundo"><div id="mini-progresso-barra" class="barra-preenchida" style="width:0%"></div></div>
+    </div>
     <div id="status-inicial" class="status-msg"></div>
   </div>
 
-  <div id="tela-progresso" class="card" style="display:none;">
-    <h2 style="font-size:16px;color:var(--azul);margin-top:0;">Progresso da conferência</h2>
-    <div id="resumo-progresso" style="margin-bottom:14px;"></div>
-    <div id="lista-progresso"></div>
-    <button class="btn-secondary" style="margin-top:14px;" onclick="voltarInicio()">Voltar</button>
+  <div id="video-wrap" class="card">
+    <video id="video-preview" autoplay muted playsinline></video>
+    <button class="btn-danger" onclick="pararScanner()">Cancelar leitura</button>
   </div>
 
+  <!-- ================= PROGRESSO ================= -->
+  <div id="tela-progresso" class="card" style="display:none;">
+    <h2 class="tit">Progresso da conferência</h2>
+    <div id="resumo-progresso" style="margin-bottom:14px;"></div>
+    <div id="lista-progresso"></div>
+    <button class="btn-secondary" id="btn-nova-rodada" style="display:none;margin-top:14px;" onclick="novaRodada()">🔄 Iniciar nova rodada de conferência</button>
+    <button class="btn-secondary" onclick="voltarInicio()">Voltar</button>
+    <div id="status-progresso" class="status-msg"></div>
+  </div>
+
+  <!-- ================= CADASTRO ================= -->
   <div id="tela-cadastro" class="card" style="display:none;">
-    <h2 style="font-size:16px;color:var(--azul);margin-top:0;">Cadastrar item novo</h2>
+    <h2 class="tit">Cadastrar item novo</h2>
     <label for="novo-codigo">Código do patrimônio</label>
-    <select id="novo-codigo">
-      <option value="">Automático (próximo da sequência)</option>
-    </select>
+    <select id="novo-codigo"><option value="">Automático (próximo da sequência)</option></select>
     <label for="novo-descricao">Descrição do item</label>
     <input type="text" id="novo-descricao" placeholder="Ex: Armário de aço 2 portas">
     <label for="novo-local">Sala onde está</label>
     <select id="novo-local"></select>
+    <input type="text" id="novo-local-novo" placeholder="Nova sala (se não estiver na lista)" style="margin-top:6px;">
     <label for="novo-situacao">Condição de uso</label>
-    <select id="novo-situacao">
-      <option>BOM</option>
-      <option>REGULAR</option>
-      <option>RUIM</option>
-    </select>
+    <select id="novo-situacao"><option>BOM</option><option>REGULAR</option><option>RUIM</option></select>
     <label for="novo-obs">Observações</label>
     <textarea id="novo-obs" placeholder="Opcional"></textarea>
     <button class="btn-primary" style="margin-top:14px;" onclick="salvarNovoItem()">Cadastrar e gerar código</button>
@@ -234,23 +252,93 @@
     <div id="status-cadastro" class="status-msg"></div>
   </div>
 
+  <!-- ================= SALA ================= -->
   <div id="tela-sala" class="card" style="display:none;">
     <label for="select-sala">Escolha a sala</label>
     <select id="select-sala"></select>
     <button class="btn-primary" style="margin-top:10px;" onclick="listarItensDaSala()">Ver itens desta sala</button>
-    <button class="btn-secondary" onclick="gerarRelatorio()">📄 Gerar relatório PDF desta sala</button>
+    <button class="btn-secondary" onclick="gerarRelatorioSala()">📄 Relatório PDF desta sala</button>
     <button class="btn-secondary" onclick="imprimirEtiquetasSala()">🏷️ Imprimir etiquetas desta sala</button>
     <label style="display:flex;align-items:center;gap:6px;font-weight:normal;font-size:12px;margin-top:6px;">
       <input type="checkbox" id="chk-etq-conferidos" style="width:auto;"> Somente itens já conferidos nesta rodada
     </label>
     <button class="btn-secondary" onclick="voltarInicio()">Voltar</button>
     <div id="status-relatorio" class="status-msg"></div>
-    <div id="lista-sala" style="margin-top:14px;"></div>
+    <label for="filtro-codpref">Mostrar na lista</label>
+    <select id="filtro-codpref" onchange="listarItensDaSala()">
+      <option value="">Todos os itens</option>
+      <option value="falta">🟠 Só os SEM código da prefeitura</option>
+      <option value="ok">🟢 Só os COM código da prefeitura</option>
+    </select>
+    <div id="lista-sala" style="margin-top:10px;"></div>
   </div>
 
-  <!-- LISTA DE BAIXAS -->
+  <!-- ================= SEM CÓDIGO DA PREFEITURA ================= -->
+  <div id="tela-sem-codigo" class="card" style="display:none;">
+    <h2 class="tit">🟠 Itens sem código da prefeitura</h2>
+    <div id="resumo-sem-codigo"></div>
+    <button class="btn-secondary" onclick="imprimirSemCodigo()">📄 Imprimir / salvar PDF desta lista</button>
+    <button class="btn-secondary" onclick="voltarInicio()">Voltar</button>
+    <div id="lista-sem-codigo" style="margin-top:12px;"></div>
+  </div>
+
+  <!-- ================= FICHA ================= -->
+  <div id="tela-ficha" class="card ficha" style="display:none;">
+   <div class="ficha-colunas">
+    <div class="ficha-col-a">
+    <span id="badge-status" class="badge"></span>
+    <h2 id="ficha-descricao">—</h2>
+    <div class="info-linha">Código: <b id="ficha-id"></b></div>
+    <div class="info-linha">Setor original da lista: <b id="ficha-setor-orig"></b></div>
+    <div class="info-linha">Valor de aquisição: <b id="ficha-valor"></b></div>
+    <div class="info-linha">Última conferência: <b id="ficha-conferencia">—</b></div>
+    <div id="ficha-aviso-baixa" class="aviso-baixa" style="display:none;"></div>
+
+    <img id="foto-atual" class="foto-preview" style="display:none;">
+
+    <label for="campo-foto">Tirar / anexar foto</label>
+    <input type="file" id="campo-foto" accept="image/*" capture="environment" onchange="previewFoto(event)">
+    <img id="foto-nova-preview" class="foto-preview" style="display:none;">
+    </div>
+
+    <div class="ficha-col-b">
+    <label for="campo-codigo-prefeitura">Código da prefeitura (etiqueta oficial)</label>
+    <input type="text" id="campo-codigo-prefeitura" placeholder="Ex: 0006249 (mantém os zeros à esquerda)">
+
+    <label for="campo-local">Local atual (consultório/sala)</label>
+    <select id="campo-local"></select>
+    <input type="text" id="campo-local-novo" placeholder="Novo local (se não estiver na lista)" style="margin-top:6px;">
+
+    <label for="campo-situacao">Condição de uso</label>
+    <select id="campo-situacao">
+      <option>BOM</option><option>REGULAR</option><option>RUIM</option><option>QUEBRADO</option>
+      <option>RECOLHER PARA BAIXA</option><option>INSERVÍVEL</option>
+    </select>
+
+    <label for="campo-idade">Data de aquisição / idade aproximada (opcional)</label>
+    <input type="text" id="campo-idade" placeholder="Ex: 2019 ou 5 anos aprox.">
+
+    <label for="campo-obs">Observações</label>
+    <textarea id="campo-obs"></textarea>
+
+    <button class="btn-primary" style="margin-top:16px;" onclick="salvar()">✅ Salvar e marcar como conferido</button>
+    <button class="btn-secondary" onclick="imprimirEtiquetaItem()">🏷️ Imprimir etiqueta deste item</button>
+    <button class="btn-baixa" id="btn-ficha-baixa" onclick="abrirBaixaDaFicha()">📤 Registrar baixa / transferência</button>
+    <button class="btn-secondary" id="btn-ficha-unificar" style="display:none;" onclick="unificarDaFicha()">🔗 Este item está duplicado? Unificar</button>
+    <button class="btn-secondary" onclick="voltarInicio()">Cancelar / escanear outro</button>
+    <div id="status-ficha" class="status-msg"></div>
+
+    <details class="hist" id="ficha-hist" ontoggle="if(this.open) carregarHistoricoItem()">
+      <summary>🕘 Histórico deste item</summary>
+      <div id="ficha-hist-lista" style="margin-top:6px;"></div>
+    </details>
+    </div>
+   </div>
+  </div>
+
+  <!-- ================= LISTA DE BAIXAS ================= -->
   <div id="tela-baixas" class="card" style="display:none;">
-    <h2 style="font-size:16px;color:var(--azul);margin-top:0;">Patrimônios baixados / transferidos</h2>
+    <h2 class="tit">Patrimônios baixados / transferidos</h2>
     <label for="filtro-baixas">Mostrar</label>
     <select id="filtro-baixas" onchange="carregarListaBaixas()">
       <option value="">Todos os registros</option>
@@ -263,9 +351,9 @@
     <button class="btn-secondary" style="margin-top:14px;" onclick="voltarInicio()">Voltar</button>
   </div>
 
-  <!-- FORMULÁRIO DE BAIXA / TRANSFERÊNCIA -->
+  <!-- ================= FORMULÁRIO DE BAIXA ================= -->
   <div id="tela-baixa" class="card" style="display:none;">
-    <h2 style="font-size:16px;color:var(--vermelho);margin-top:0;">Baixa / transferência</h2>
+    <h2 class="tit" style="color:var(--vermelho);">Baixa / transferência</h2>
     <div style="font-size:14px;"><b id="bx-id">—</b> — <span id="bx-desc">—</span></div>
     <div class="info-linha">Última sala: <b id="bx-sala">—</b> · Situação do registro: <b id="bx-status">NOVO</b></div>
 
@@ -278,24 +366,19 @@
       <option>FURTO / EXTRAVIO</option>
       <option>OUTRO</option>
     </select>
-
     <label for="bx-data-sol">Data da solicitação</label>
     <input type="date" id="bx-data-sol">
-
     <label for="bx-solicitante">Quem solicitou</label>
     <input type="text" id="bx-solicitante" placeholder="Nome (e cargo, se quiser)">
-
     <label for="bx-motivo">Motivo</label>
     <textarea id="bx-motivo" placeholder="Ex: quebrado sem conserto; remanejado para a ESF Jardim; obsoleto..."></textarea>
-
     <div id="bx-bloco-destino">
       <label for="bx-destino">Destino (para onde foi)</label>
       <input type="text" id="bx-destino" placeholder="Ex: ESF Jardim / Almoxarifado central">
     </div>
 
     <label class="linha-check"><input type="checkbox" id="bx-concluir" onchange="ajustarCamposBaixa()"> O item já foi retirado da unidade</label>
-    <div class="info-linha" style="font-size:11px;">Ao salvar com esta opção marcada, o item sai da lista ativa e fica guardado na aba BAIXAS.</div>
-
+    <div class="info-linha" style="font-size:11px;">Ao salvar com esta opção marcada, o item sai da lista ativa e fica guardado nas baixas.</div>
     <div id="bx-bloco-retirada" class="bloco-retirada" style="display:none;">
       <label for="bx-data-ret">Data da retirada</label>
       <input type="date" id="bx-data-ret">
@@ -307,23 +390,16 @@
 
     <label for="bx-num-termo">Nº do termo de transferência / processo</label>
     <input type="text" id="bx-num-termo" placeholder="Opcional">
-
     <label for="bx-termo">Anexar termo (PDF ou foto do papel)</label>
     <input type="file" id="bx-termo" accept="application/pdf,image/*">
     <div id="bx-termo-atual"></div>
-
     <label for="bx-foto-ret">Foto do momento da retirada</label>
     <input type="file" id="bx-foto-ret" accept="image/*" capture="environment">
     <div id="bx-foto-atual"></div>
-
     <label for="bx-sistema">Baixa já feita no sistema da prefeitura?</label>
     <select id="bx-sistema">
-      <option value="">— não informado —</option>
-      <option>NÃO</option>
-      <option>SIM</option>
-      <option>NÃO SE APLICA</option>
+      <option value="">— não informado —</option><option>NÃO</option><option>SIM</option><option>NÃO SE APLICA</option>
     </select>
-
     <label for="bx-obs">Observações</label>
     <textarea id="bx-obs" placeholder="Opcional"></textarea>
 
@@ -335,55 +411,61 @@
     <div id="status-baixa" class="status-msg"></div>
   </div>
 
-  <div id="video-wrap" class="card">
-    <video id="video-preview" autoplay muted playsinline></video>
-    <button class="btn-danger" onclick="pararScanner()">Cancelar leitura</button>
+  <!-- ================= POSSÍVEIS DUPLICADOS (admin) ================= -->
+  <div id="tela-duplicados" class="card" style="display:none;">
+    <h2 class="tit">🔍 Possíveis duplicados</h2>
+    <div class="info-linha" style="margin-bottom:10px;">O app só <b>sugere</b>. Confira o item na sala antes de unificar — itens iguais (ex.: várias cadeiras) não são duplicados.</div>
+    <div id="lista-duplicados"></div>
+    <button class="btn-secondary" style="margin-top:14px;" onclick="voltarInicio()">Voltar</button>
   </div>
 
-  <div id="tela-ficha" class="card ficha" style="display:none;">
-    <span id="badge-status" class="badge"></span>
-    <h2 id="ficha-descricao">—</h2>
-    <div class="info-linha">ID interno: <b id="ficha-id"></b></div>
-    <div class="info-linha">Setor original da lista: <b id="ficha-setor-orig"></b></div>
-    <div class="info-linha">Valor de aquisição: <b id="ficha-valor"></b></div>
-    <div class="info-linha">Última conferência: <b id="ficha-conferencia">—</b></div>
-    <div id="ficha-aviso-baixa" class="aviso-baixa" style="display:none;"></div>
+  <!-- ================= UNIFICAR (admin) ================= -->
+  <div id="tela-unificar" class="card" style="display:none;">
+    <h2 class="tit">🔗 Unificar itens duplicados</h2>
+    <div id="unif-escolha" style="display:none;">
+      <label for="unif-outro">Código do OUTRO item (PAT ou código da prefeitura)</label>
+      <div class="manual-busca" style="margin-top:0;">
+        <input type="text" id="unif-outro" placeholder="Bipe ou digite a outra etiqueta">
+        <button class="btn-secondary" onclick="compararComOutro()">Comparar</button>
+      </div>
+    </div>
+    <div id="unif-comparacao"></div>
+    <div id="unif-acoes" style="display:none;">
+      <label class="linha-check" style="font-weight:normal;"><input type="checkbox" id="unif-liberar">
+        <span>O código do item que sai <b>nunca teve etiqueta colada</b> (pode ser reaproveitado)</span></label>
+      <div class="info-linha" style="font-size:11px;">Deixe desmarcado se havia etiqueta PAT colada: o número fica bloqueado para sempre e, se alguém bipar a etiqueta antiga, o app leva para o item que ficou.</div>
+      <label for="unif-motivo">Motivo / observação</label>
+      <input type="text" id="unif-motivo" placeholder="Ex: mesmo aparelho com duas etiquetas">
+      <button class="btn-primary" style="margin-top:14px;" onclick="confirmarUnificacao()">🔗 Unificar</button>
+    </div>
+    <button class="btn-secondary" onclick="voltarInicio()">Cancelar</button>
+    <div id="status-unificar" class="status-msg"></div>
+  </div>
 
-    <label for="campo-codigo-prefeitura">Código da prefeitura (etiqueta oficial, quando chegar)</label>
-    <input type="text" id="campo-codigo-prefeitura" placeholder="Ex: 0006249 (mantém os zeros à esquerda)">
-
-    <img id="foto-atual" class="foto-preview" style="display:none;">
-
-    <label for="campo-local">Local atual (consultório/sala)</label>
-    <select id="campo-local"></select>
-    <input type="text" id="campo-local-novo" placeholder="Novo local (se não estiver na lista)" style="margin-top:6px;">
-
-    <label for="campo-situacao">Condição de uso</label>
-    <select id="campo-situacao">
-      <option>BOM</option>
-      <option>REGULAR</option>
-      <option>RUIM</option>
-      <option>QUEBRADO</option>
-      <option>RECOLHER PARA BAIXA</option>
-      <option>INSERVÍVEL</option>
+  <!-- ================= EQUIPE (admin) ================= -->
+  <div id="tela-equipe" class="card" style="display:none;">
+    <h2 class="tit">👥 Equipe e acessos</h2>
+    <div id="lista-equipe"></div>
+    <h2 class="tit" style="margin-top:18px;">Convidar pessoa</h2>
+    <label for="conv-nome">Nome</label>
+    <input type="text" id="conv-nome" placeholder="Nome da pessoa">
+    <label for="conv-email">E-mail</label>
+    <input type="email" id="conv-email" placeholder="email@gmail.com">
+    <label for="conv-papel">Papel</label>
+    <select id="conv-papel">
+      <option value="equipe">Equipe (usa o app)</option>
+      <option value="admin">Administrador (usa o app + gerencia acessos)</option>
     </select>
+    <button class="btn-primary" style="margin-top:12px;" onclick="convidar()">➕ Convidar</button>
+    <div class="info-linha" style="font-size:11px;margin-top:6px;">Depois do convite, a pessoa abre o app, digita o e-mail e toca em "Primeiro acesso: criar minha senha".</div>
+    <div id="lista-convites" style="margin-top:14px;"></div>
+    <div id="status-equipe" class="status-msg"></div>
 
-    <label for="campo-idade">Data de aquisição / idade aproximada (opcional)</label>
-    <input type="text" id="campo-idade" placeholder="Ex: 2019 ou 5 anos aprox.">
-
-    <label for="campo-obs">Observações</label>
-    <textarea id="campo-obs" placeholder="Ex: bem substituído sem baixa, aguardando etiqueta nova, etc."></textarea>
-
-    <label for="campo-foto">Tirar / anexar foto</label>
-    <input type="file" id="campo-foto" accept="image/*" capture="environment" onchange="previewFoto(event)">
-    <img id="foto-nova-preview" class="foto-preview" style="display:none;">
-
-    <button class="btn-primary" style="margin-top:16px;" onclick="salvar()">✅ Salvar e marcar como conferido</button>
-    <button class="btn-secondary" onclick="imprimirEtiquetaItem()">🏷️ Imprimir etiqueta deste item</button>
-    <button class="btn-baixa" id="btn-ficha-baixa" onclick="abrirBaixaDaFicha()">📤 Registrar baixa / transferência</button>
-    <button class="btn-secondary" onclick="voltarInicio()">Cancelar / escanear outro</button>
-
-    <div id="status-ficha" class="status-msg"></div>
+    <h2 class="tit" style="margin-top:22px;">🛠️ Manutenção</h2>
+    <button class="btn-secondary" onclick="reduzirFotosAntigas()">🗜️ Reduzir fotos pesadas (liberar espaço)</button>
+    <div class="info-linha" style="font-size:11px;margin-top:4px;">Use no computador, com internet boa. Reduz as fotos grandes (vindas da planilha) para o mesmo tamanho das tiradas pelo app. Pode fechar e continuar depois: ele só mexe nas que ainda estão pesadas.</div>
+    <div id="status-fotos" class="status-msg"></div>
+    <button class="btn-secondary" style="margin-top:14px;" onclick="voltarInicio()">Voltar</button>
   </div>
 
   <div class="rodape">ESF Flor do Cerrado — Nova Mutum/MT<br>Desenvolvido por antonioresolve.com</div>
@@ -391,917 +473,1260 @@
 
 <script>
 // ===================================================================
-// TROQUE AQUI pela URL do seu Apps Script (termina em /exec)
+// CONEXÃO COM O SUPABASE (projeto "patrimonio")
+// A chave publicável pode ficar no código: quem não tiver login não
+// consegue ver nem alterar nada (regras de acesso no banco).
 // ===================================================================
-const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwXfObTqAjcubWjdzj97THmdRjekcYh_9GSkaikBENfYRy8A7OR6j2vEDijS7BnhqtLeA/exec';
-// Precisa ser IDÊNTICA à ACCESS_KEY do Código.gs, senão todo pedido é recusado.
-const ACCESS_KEY = 'SDAmAKO429dmYN-x2BUKZiZjglGZ_iL5';
+const SUPABASE_URL = 'https://otmwjvtsmtmnvifffhff.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_wyP0F8jQS5N8HcojJn62rA_CagOdg3l';
+const BUCKET = 'patrimonio';
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-let codeReader = null;
+let perfil = null;        // {id, nome, papel, unidade_id, unidade_nome}
+let cacheItens = [];      // todos os itens ativos da unidade
 let itemAtual = null;
-let fotoBase64 = null;
-let fotoMime = null;
+let fotoArquivo = null;
+let codeReader = null;
+let baixaAtual = null;
+// Chegou pelo link "criar nova senha" do e-mail?
+let emRecuperacao = /type=recovery/.test(location.hash);
+let iniciando = false;
 
-// ---------- LEITOR BLUETOOTH HID ----------
-const inputManual = document.getElementById('input-manual');
-let digitacaoIniciadaEm = null;
-inputManual.addEventListener('keydown', function (e) {
-  if (e.key === 'Enter' || e.keyCode === 13) {
-    e.preventDefault();
-    buscarManual();
-  }
-});
-inputManual.addEventListener('input', function (e) {
-  const v = inputManual.value.trim();
-
-  // Marca quando o primeiro caractere foi digitado nesta "rodada"
-  if (v.length <= 1) {
-    digitacaoIniciadaEm = Date.now();
-  }
-
-  const isBulkInsert = e.inputType === 'insertFromPaste' || e.inputType === 'insertFromDrop';
-  const tempoDecorrido = digitacaoIniciadaEm ? (Date.now() - digitacaoIniciadaEm) : 9999;
-  // Leitor Bluetooth "digita" um código inteiro em poucas dezenas de milissegundos;
-  // uma pessoa digitando manualmente demora bem mais que isso entre teclas.
-  const pareceLeitor = isBulkInsert || tempoDecorrido < 400;
-
-  if (pareceLeitor && (/^PAT-\d{3,6}$/i.test(v) || /^\d{4,10}$/.test(v))) {
-    setTimeout(buscarManual, 100);
-  }
-});
-
-// ---------- SCANNER (câmera) ----------
-async function iniciarScanner() {
-  document.getElementById('video-wrap').style.display = 'block';
-  document.getElementById('status-inicial').textContent = '';
-  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-    document.getElementById('status-inicial').innerHTML =
-      '<span class="status-msg erro">Este navegador não permite acesso à câmera nesta página. Use a busca manual abaixo.</span>';
-    pararScanner();
-    return;
-  }
-  codeReader = new ZXing.BrowserMultiFormatReader();
-  try {
-    await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-    const devices = await codeReader.listVideoInputDevices();
-    if (!devices.length) throw new Error('Nenhuma câmera encontrada no aparelho.');
-    let device = devices.find(d => /back|traseira|rear|environment/i.test(d.label)) || devices[devices.length - 1];
-    codeReader.decodeFromVideoDevice(device.deviceId, 'video-preview', (result, err) => {
-      if (result) {
-        pararScanner();
-        buscar(result.getText());
-      }
-    });
-  } catch (e) {
-    let msg = 'Não foi possível acessar a câmera: ' + e.message;
-    if (e.name === 'NotAllowedError') {
-      msg = 'Permissão de câmera negada. Toque no ícone de cadeado/informações ao lado do endereço, libere a câmera para este site e recarregue.';
-    } else if (e.name === 'NotFoundError') {
-      msg = 'Nenhuma câmera foi encontrada neste aparelho.';
-    } else if (e.name === 'NotReadableError') {
-      msg = 'A câmera está sendo usada por outro aplicativo.';
-    }
-    document.getElementById('status-inicial').innerHTML = '<span class="status-msg erro">' + msg + '</span>';
-    pararScanner();
-  }
+const TELAS = ['tela-login', 'tela-nova-senha', 'tela-sem-acesso', 'tela-inicial', 'video-wrap', 'tela-progresso',
+  'tela-cadastro', 'tela-sala', 'tela-ficha', 'tela-baixas', 'tela-baixa', 'tela-equipe', 'tela-duplicados', 'tela-unificar', 'tela-sem-codigo'];
+function mostrar(id) {
+  TELAS.forEach(function (t) { document.getElementById(t).style.display = (t === id ? 'block' : 'none'); });
+  window.scrollTo(0, 0);
 }
-
-function pararScanner() {
-  if (codeReader) { try { codeReader.reset(); } catch (e) {} }
-  document.getElementById('video-wrap').style.display = 'none';
+function $(id) { return document.getElementById(id); }
+function esc(t) { return String(t == null ? '' : t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+function msg(id, texto, tipo) { $(id).innerHTML = texto ? '<span class="status-msg ' + (tipo || '') + '">' + texto + '</span>' : ''; }
+function erroTexto(e) {
+  const m = (e && (e.message || e.error_description || e.msg)) || String(e);
+  if (/Invalid login credentials/i.test(m)) return 'E-mail ou senha incorretos.';
+  if (/Email not confirmed/i.test(m)) return 'Você ainda não confirmou o e-mail. Abra o link que chegou na sua caixa de entrada (veja também o spam).';
+  if (/User already registered/i.test(m)) return 'Este e-mail já tem senha criada. Use "Entrar" ou "Esqueci minha senha".';
+  if (/Password should be at least/i.test(m)) return 'A senha precisa ter pelo menos 6 caracteres.';
+  if (/Failed to fetch|NetworkError/i.test(m)) return 'Sem conexão com a internet.';
+  return m;
 }
-
-function buscarManual() {
-  const val = document.getElementById('input-manual').value.trim();
-  if (!val) return;
-  document.getElementById('input-manual').value = '';
-  buscar(val);
-}
-
-// ---------- MINI-RESUMO DE PROGRESSO (tela inicial) ----------
-// Carrega sozinho ao abrir o app e se atualiza depois de cada salvamento
-// ou cadastro. Se a chamada falhar, o bloco simplesmente não aparece —
-// nunca atrapalha o uso normal.
-async function atualizarMiniProgresso() {
-  try {
-    const resp = await apiGet({ action: 'progresso' });
-    if (!resp.ok) return;
-    const p = resp.progresso;
-    const pct = p.total ? Math.round((p.conferidos / p.total) * 100) : 0;
-    document.getElementById('mini-progresso-num').textContent =
-      p.conferidos + '/' + p.total + ' conferidos (' + pct + '%)';
-    document.getElementById('mini-progresso-barra').style.width = pct + '%';
-    document.getElementById('mini-progresso').style.display = 'block';
-  } catch (e) {
-    // silencioso de propósito
-  }
-}
-
-// ---------- FILTRO POR SALA ----------
-async function abrirFiltroSala() {
-  document.getElementById('tela-inicial').style.display = 'none';
-  document.getElementById('tela-sala').style.display = 'block';
-  document.getElementById('lista-sala').innerHTML = '';
-  document.getElementById('status-relatorio').innerHTML = '';
-  try {
-    const resp = await apiGet({ action: 'setores' });
-    const setores = resp.ok ? resp.setores : [];
-    const sel = document.getElementById('select-sala');
-    sel.innerHTML = '';
-    setores.forEach(function (s) {
-      const opt = document.createElement('option');
-      opt.value = s; opt.textContent = s;
-      sel.appendChild(opt);
-    });
-  } catch (err) {
-    document.getElementById('lista-sala').innerHTML =
-      '<div class="status-msg erro">Erro ao carregar salas: ' + err.message + '</div>';
-  }
-}
-
-async function listarItensDaSala() {
-  const sala = document.getElementById('select-sala').value;
-  const div = document.getElementById('lista-sala');
-  div.innerHTML = '<div class="status-msg">Carregando...</div>';
-  try {
-    const resp = await apiGet({ action: 'listarSala', sala: sala });
-    if (!resp.ok) { div.innerHTML = '<div class="status-msg erro">' + resp.erro + '</div>'; return; }
-    if (!resp.itens.length) { div.innerHTML = '<div class="status-msg">Nenhum item cadastrado nessa sala.</div>'; return; }
-    div.innerHTML = '';
-    resp.itens.forEach(function (item) {
-      const row = document.createElement('div');
-      row.className = 'item-lista';
-      const conferido = item.CONFERIDO_NESTA_RODADA === 'SIM';
-      row.innerHTML =
-        '<span class="nome">' + item.DESCRICAO_ITEM + ' <span style="color:#999">(' + item.ID_INTERNO + ')</span></span>' +
-        '<span class="tag ' + (conferido ? 'tag-ok' : 'tag-pendente') + '">' + (conferido ? 'conferido' : 'pendente') + '</span>';
-      row.onclick = function () { buscar(item.ID_INTERNO); document.getElementById('tela-sala').style.display = 'none'; };
-      div.appendChild(row);
-    });
-  } catch (err) {
-    div.innerHTML = '<div class="status-msg erro">Erro: ' + err.message + '</div>';
-  }
-}
-
-async function gerarRelatorio() {
-  const sala = document.getElementById('select-sala').value;
-  const status = document.getElementById('status-relatorio');
-  status.innerHTML = 'Gerando PDF... isso pode levar alguns segundos (as fotos demoram mais).';
-  try {
-    const resp = await apiPost('relatorio', { sala: sala });
-    if (!resp.ok) throw new Error(resp.erro || 'Falha ao gerar relatório.');
-    status.innerHTML = '<a href="' + resp.url + '" target="_blank" style="color:var(--azul);font-weight:bold;">✅ PDF pronto — toque aqui para abrir</a>';
-  } catch (err) {
-    status.innerHTML = '<span class="status-msg erro">Erro: ' + err.message + '</span>';
-  }
-}
-
-// ---------- PAINEL DE PROGRESSO ----------
-async function abrirProgresso() {
-  document.getElementById('tela-inicial').style.display = 'none';
-  document.getElementById('tela-progresso').style.display = 'block';
-  document.getElementById('resumo-progresso').innerHTML = '<div class="status-msg">Carregando...</div>';
-  document.getElementById('lista-progresso').innerHTML = '';
-  try {
-    const resp = await apiGet({ action: 'progresso' });
-    if (!resp.ok) throw new Error(resp.erro || 'Falha ao carregar progresso.');
-    const p = resp.progresso;
-    const pct = p.total ? Math.round((p.conferidos / p.total) * 100) : 0;
-
-    document.getElementById('resumo-progresso').innerHTML =
-      '<div class="resumo-caixa">' +
-      '<div><div class="resumo-numero">' + p.total + '</div><div class="resumo-label">TOTAL</div></div>' +
-      '<div><div class="resumo-numero" style="color:var(--verde)">' + p.conferidos + '</div><div class="resumo-label">CONFERIDOS</div></div>' +
-      '<div><div class="resumo-numero" style="color:var(--amarelo)">' + p.pendentes + '</div><div class="resumo-label">PENDENTES</div></div>' +
-      '</div>' +
-      '<div class="barra-fundo"><div class="barra-preenchida" style="width:' + pct + '%"></div></div>' +
-      '<div style="text-align:center;font-size:12px;color:var(--cinza);margin-top:4px;">' + pct + '% conferido no geral</div>';
-
-    const div = document.getElementById('lista-progresso');
-    p.porSala.forEach(function (s) {
-      const pctSala = s.total ? Math.round((s.conferidos / s.total) * 100) : 0;
-      const row = document.createElement('div');
-      row.className = 'linha-progresso-sala';
-      row.innerHTML =
-        '<div class="topo"><span>' + s.sala + '</span><span>' + s.conferidos + '/' + s.total + '</span></div>' +
-        '<div class="barra-fundo"><div class="barra-preenchida" style="width:' + pctSala + '%"></div></div>';
-      div.appendChild(row);
-    });
-  } catch (err) {
-    document.getElementById('resumo-progresso').innerHTML =
-      '<div class="status-msg erro">Erro: ' + err.message + '</div>';
-  }
-}
-
-// ---------- ORGANIZAR PLANILHA POR SALA ----------
-async function ordenarPlanilha() {
-  const st = document.getElementById('status-inicial');
-  st.innerHTML = 'Organizando a planilha por sala...';
-  try {
-    const resp = await apiPost('ordenar', {});
-    if (!resp.ok) throw new Error(resp.erro || 'Falha ao ordenar.');
-    st.innerHTML = '<span class="status-msg ok">✅ ' + (resp.msg || 'Planilha organizada por sala!') + '</span>';
-  } catch (err) {
-    st.innerHTML = '<span class="status-msg erro">Erro: ' + err.message + '</span>';
-  }
-}
-
-// ---------- GERADOR DE ETIQUETAS (no próprio app) ----------
-// Gera etiquetas PAT-XXXX com código de barras Code128 direto no navegador
-// (biblioteca JsBarcode) e abre a janela de impressão do aparelho — dá pra
-// mandar pra impressora ou "Salvar como PDF". Grade de 3 colunas, mesmo
-// layout das etiquetas em lote.
-const CSS_ETIQUETAS = '@page{size:A4;margin:8mm}' +
-  'body{margin:0;font-family:Arial,Helvetica,sans-serif}' +
-  '#grade{display:grid;grid-template-columns:repeat(3,1fr)}' +
-  '.etq{border:0.4px solid #ccc;height:34.5mm;box-sizing:border-box;display:flex;' +
-  'flex-direction:column;align-items:center;padding:2mm 2mm 1mm;text-align:center;' +
-  'overflow:hidden;page-break-inside:avoid;break-inside:avoid}' +
-  '.bc svg{height:9mm;max-width:56mm}' +
-  '.pat{font-weight:bold;font-size:10pt;margin-top:0.5mm}' +
-  '.desc{font-size:6pt;line-height:1.25;max-height:6.2mm;overflow:hidden}' +
-  '.sala{font-size:6pt;font-style:italic;color:#333;margin-top:0.8mm}' +
-  '.rodape{font-size:4.5pt;color:#777;margin-top:auto}';
-
-function esc(t) {
-  return String(t == null ? '' : t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-}
-
-function svgCodigoBarras(texto) {
-  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-  JsBarcode(svg, texto, { format: 'CODE128', displayValue: false, height: 38, width: 1.4, margin: 0 });
-  return svg.outerHTML;
-}
-
-function htmlEtiqueta(id, desc, sala) {
-  return '<div class="etq">' +
-    '<div class="bc">' + svgCodigoBarras(id) + '</div>' +
-    '<div class="pat">' + esc(id) + '</div>' +
-    '<div class="desc">' + esc(desc) + '</div>' +
-    '<div class="sala">' + esc(sala) + '</div>' +
-    '<div class="rodape">ESF FLOR DO CERRADO</div>' +
-    '</div>';
-}
-
-// Abre a janela de impressão JÁ no clique (evita bloqueio de pop-up) e
-// preenche depois, quando os dados chegarem.
-function abrirJanelaEtiquetas() {
-  const w = window.open('', '_blank');
-  if (!w) return null;
-  w.document.write('<!DOCTYPE html><html><head><meta charset="utf-8">' +
-    '<title>Etiquetas PAT</title><style>' + CSS_ETIQUETAS + '</style></head>' +
-    '<body><div id="grade">Gerando etiquetas...</div></body></html>');
-  w.document.close();
-  return w;
-}
-
-function preencherEtiquetas(w, etiquetasHtml, quantidade) {
-  w.document.getElementById('grade').innerHTML = etiquetasHtml;
-  w.document.title = 'Etiquetas PAT (' + quantidade + ')';
-  setTimeout(function () { try { w.focus(); w.print(); } catch (e) {} }, 500);
-}
-
-// Etiqueta avulsa do item aberto na ficha. Usa a sala escolhida NA TELA
-// (mesmo antes de salvar) — assim, definiu o destino na conferência, a
-// etiqueta já sai com a sala correta.
-function imprimirEtiquetaItem() {
-  if (!itemAtual) return;
-  const w = abrirJanelaEtiquetas();
-  if (!w) { alert('O navegador bloqueou a janela de impressão. Permita pop-ups para este site.'); return; }
-  const localNovo = document.getElementById('campo-local-novo').value.trim();
-  const sala = localNovo || document.getElementById('campo-local').value || itemAtual.LOCAL_ATUAL || '';
-  const html = htmlEtiqueta(itemAtual.ID_INTERNO, itemAtual.DESCRICAO_ITEM || '', sala);
-  preencherEtiquetas(w, html, 1);
-}
-
-// Etiquetas de todos os itens da sala selecionada (opcionalmente só os já
-// conferidos nesta rodada, pra não imprimir etiqueta desnecessária).
-async function imprimirEtiquetasSala() {
-  const sala = document.getElementById('select-sala').value;
-  const soConferidos = document.getElementById('chk-etq-conferidos').checked;
-  const w = abrirJanelaEtiquetas();
-  if (!w) { alert('O navegador bloqueou a janela de impressão. Permita pop-ups para este site.'); return; }
-  try {
-    const resp = await apiGet({ action: 'listarSala', sala: sala });
-    if (!resp.ok) throw new Error(resp.erro || 'Falha ao listar a sala.');
-    let itens = resp.itens;
-    if (soConferidos) {
-      itens = itens.filter(function (i) {
-        return String(i.CONFERIDO_NESTA_RODADA || '').trim().toUpperCase() === 'SIM';
-      });
-    }
-    if (!itens.length) {
-      w.document.getElementById('grade').textContent =
-        'Nenhum item para etiquetar nessa sala' + (soConferidos ? ' (com o filtro de conferidos ativo).' : '.');
-      return;
-    }
-    const html = itens.map(function (i) {
-      return htmlEtiqueta(i.ID_INTERNO, i.DESCRICAO_ITEM || '', i.LOCAL_ATUAL || sala);
-    }).join('');
-    preencherEtiquetas(w, html, itens.length);
-  } catch (err) {
-    try { w.document.getElementById('grade').textContent = 'Erro: ' + err.message; } catch (e) {}
-  }
-}
-
-// ---------- CÓDIGOS LIVRES NA SEQUÊNCIA ----------
-// Lê a coluna de IDs e mostra os números faltantes (linhas excluídas, ex.
-// duplicidade eliminada) que podem ser reaproveitados em aquisições novas.
-async function verCodigosLivres() {
-  const st = document.getElementById('status-inicial');
-  st.innerHTML = 'Consultando a sequência de códigos...';
-  try {
-    const resp = await apiGet({ action: 'faltantes' });
-    if (!resp.ok) throw new Error(resp.erro || 'Falha na consulta.');
-    const livres = resp.faltantes.length
-      ? '<b>' + resp.faltantes.join('</b> · <b>') + '</b>'
-      : 'nenhum — a sequência está completa ✅';
-    st.innerHTML = '<span class="status-msg">Códigos livres (reaproveitáveis): ' + livres +
-      '<br>Próximo código novo: <b>' + resp.proximo + '</b>' +
-      '<br><span style="font-size:11px;color:var(--cinza);">Para usar um código livre, vá em "Cadastrar item novo" e escolha-o no campo Código.</span></span>';
-  } catch (err) {
-    st.innerHTML = '<span class="status-msg erro">Erro: ' + err.message + '</span>';
-  }
-}
-
-// ---------- CADASTRAR ITEM NOVO ----------
-async function abrirCadastroNovo() {
-  document.getElementById('tela-inicial').style.display = 'none';
-  document.getElementById('tela-cadastro').style.display = 'block';
-  document.getElementById('novo-descricao').value = '';
-  document.getElementById('novo-obs').value = '';
-  document.getElementById('status-cadastro').innerHTML = '';
-
-  // Código: opção automática + números livres reaproveitáveis
-  const selCod = document.getElementById('novo-codigo');
-  selCod.innerHTML = '<option value="">Automático (próximo da sequência)</option>';
-  try {
-    const respF = await apiGet({ action: 'faltantes' });
-    if (respF.ok) {
-      selCod.options[0].textContent = 'Automático (próximo: ' + respF.proximo + ')';
-      respF.faltantes.forEach(function (c) {
-        const opt = document.createElement('option');
-        opt.value = c; opt.textContent = 'Reaproveitar ' + c + ' (livre na sequência)';
-        selCod.appendChild(opt);
-      });
-    }
-  } catch (err) {}
-
-  try {
-    const resp = await apiGet({ action: 'setores' });
-    const setores = resp.ok ? resp.setores : [];
-    const sel = document.getElementById('novo-local');
-    sel.innerHTML = '';
-    setores.forEach(function (s) {
-      const opt = document.createElement('option');
-      opt.value = s; opt.textContent = s;
-      sel.appendChild(opt);
-    });
-  } catch (err) {}
-}
-
-async function salvarNovoItem() {
-  const descricao = document.getElementById('novo-descricao').value.trim();
-  if (!descricao) {
-    document.getElementById('status-cadastro').innerHTML = '<span class="status-msg erro">Descreve o item antes de salvar.</span>';
-    return;
-  }
-  const payload = {
-    DESCRICAO_ITEM: descricao,
-    LOCAL_ATUAL: document.getElementById('novo-local').value,
-    SITUACAO: document.getElementById('novo-situacao').value,
-    OBSERVACOES: document.getElementById('novo-obs').value
-  };
-  const codEscolhido = document.getElementById('novo-codigo').value;
-  if (codEscolhido) payload.ID_DESEJADO = codEscolhido;
-  document.getElementById('status-cadastro').innerHTML = 'Salvando...';
-  try {
-    const resp = await apiPost('cadastrar', payload);
-    if (!resp.ok) throw new Error(resp.erro || 'Falha ao cadastrar.');
-    document.getElementById('status-cadastro').innerHTML =
-      '<span class="status-msg ok">✅ Cadastrado como ' + resp.id_interno + '! Anota esse código pra imprimir a etiqueta depois.</span>';
-    atualizarMiniProgresso();
-    setTimeout(voltarInicio, 2500);
-  } catch (err) {
-    document.getElementById('status-cadastro').innerHTML =
-      '<span class="status-msg erro">Erro: ' + err.message + '</span>';
-  }
-}
-
-// ---------- CHAMADAS AO APPS SCRIPT (via fetch, sem google.script.run) ----------
-async function apiGet(params) {
-  const url = APPS_SCRIPT_URL + '?' + new URLSearchParams({ chave: ACCESS_KEY, ...params }).toString();
-  const resp = await fetch(url);
-  return resp.json();
-}
-
-async function apiPost(action, payload) {
-  // Content-Type text/plain evita que o navegador dispare um preflight CORS
-  // (o Apps Script não responde bem a esse preflight)
-  const resp = await fetch(APPS_SCRIPT_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify({ chave: ACCESS_KEY, action: action, payload: payload })
-  });
-  return resp.json();
-}
-
-// ---------- BUSCA ----------
-async function buscar(codigo) {
-  document.getElementById('status-inicial').innerHTML = 'Buscando ' + codigo + '...';
-  try {
-    const resp = await apiGet({ action: 'buscar', codigo: codigo });
-    if (!resp.ok) {
-      // Não está na lista ativa: será que foi baixado/transferido?
-      if (await mostrarSeFoiBaixado(codigo)) return;
-      document.getElementById('status-inicial').innerHTML =
-        '<span class="status-msg erro">' + resp.erro + '</span>';
-      return;
-    }
-    itemAtual = resp.item;
-    mostrarFicha(itemAtual);
-    carregarSetores(itemAtual.LOCAL_ATUAL);
-  } catch (err) {
-    document.getElementById('status-inicial').innerHTML =
-      '<span class="status-msg erro">Erro de conexão: ' + err.message + '</span>';
-  }
-}
-
-// ---------- FICHA ----------
-// A data de conferência pode chegar como texto "dd/MM/yyyy HH:mm" (como o
-// backend grava) ou como data ISO (quando o Sheets interpreta a célula como
-// data de verdade). Esta função aceita os dois e devolve sempre "dd/mm/aaaa hh:mm".
-function formatarDataConferencia(v) {
+function dataBR(v) {               // "2026-11-18" ou ISO → "18/11/2026"
   if (!v) return '';
   const s = String(v);
-  if (/^\d{4}-\d{2}-\d{2}T/.test(s)) {
-    const d = new Date(s);
-    if (!isNaN(d)) {
-      return d.toLocaleDateString('pt-BR') + ' ' +
-        d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-    }
-  }
-  return s;
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (m) return m[3] + '/' + m[2] + '/' + m[1];
+  const d = new Date(s);
+  return isNaN(d) ? s : d.toLocaleDateString('pt-BR');
 }
-
-function mostrarFicha(item) {
-  document.getElementById('tela-inicial').style.display = 'none';
-  document.getElementById('tela-ficha').style.display = 'block';
-  document.getElementById('status-ficha').innerHTML = '';
-
-  document.getElementById('ficha-descricao').textContent = item.DESCRICAO_ITEM || '(sem descrição)';
-  document.getElementById('ficha-id').textContent = item.ID_INTERNO || '—';
-  document.getElementById('ficha-setor-orig').textContent = item.SETOR_LISTA_ORIGINAL || '—';
-  document.getElementById('campo-codigo-prefeitura').value = item.CODIGO_PREFEITURA || '';
-  const valorTxt = item.VALOR_AQUISICAO ? ('R$ ' + item.VALOR_AQUISICAO + (item.DATA_AQUISICAO_IDADE ? ' (' + item.DATA_AQUISICAO_IDADE + ')' : '')) : 'não informado';
-  document.getElementById('ficha-valor').textContent = valorTxt;
-
-  // Situação da conferência: quando foi a última e se este item já foi
-  // conferido nesta rodada — pra ninguém conferir o mesmo item duas vezes.
-  const jaConferido = String(item.CONFERIDO_NESTA_RODADA || '').trim().toUpperCase() === 'SIM';
-  const dataConf = formatarDataConferencia(item.DATA_ULTIMA_CONFERENCIA);
-  document.getElementById('ficha-conferencia').innerHTML =
-    (dataConf || 'nunca') +
-    (jaConferido
-      ? ' <span style="color:var(--verde);">• já conferido nesta rodada</span>'
-      : ' <span style="color:var(--amarelo);">• pendente nesta rodada</span>');
-
-  const badge = document.getElementById('badge-status');
-  badge.textContent = item.STATUS_ETIQUETA || '';
-  badge.className = 'badge ' +
-    (item.STATUS_ETIQUETA === 'COM CÓDIGO PREFEITURA' ? 'badge-ok' :
-     /DUVIDOSO/.test(item.STATUS_ETIQUETA) ? 'badge-duvidoso' : 'badge-pendente');
-
-  document.getElementById('campo-situacao').value = item.SITUACAO || 'BOM';
-  document.getElementById('campo-idade').value = item.DATA_AQUISICAO_IDADE || '';
-  document.getElementById('campo-obs').value = item.OBSERVACOES || '';
-  document.getElementById('campo-local-novo').value = '';
-
-  fotoBase64 = null; fotoMime = null;
-  document.getElementById('campo-foto').value = '';
-  document.getElementById('foto-nova-preview').style.display = 'none';
-
-  const fotoAtual = document.getElementById('foto-atual');
-  if (item.FOTO_LINK) {
-    fotoAtual.src = item.FOTO_LINK;
-    fotoAtual.style.display = 'block';
-  } else {
-    fotoAtual.style.display = 'none';
-  }
-
-  verificarBaixaNaFicha(item.ID_INTERNO);
-}
-
-async function carregarSetores(localAtual) {
-  try {
-    const resp = await apiGet({ action: 'setores' });
-    const setores = resp.ok ? resp.setores : [];
-    const sel = document.getElementById('campo-local');
-    sel.innerHTML = '';
-    setores.forEach(function (s) {
-      const opt = document.createElement('option');
-      opt.value = s; opt.textContent = s;
-      if (s === localAtual) opt.selected = true;
-      sel.appendChild(opt);
-    });
-    if (!setores.includes(localAtual) && localAtual) {
-      const opt = document.createElement('option');
-      opt.value = localAtual; opt.textContent = localAtual; opt.selected = true;
-      sel.appendChild(opt);
-    }
-  } catch (err) {
-    console.error('Erro ao carregar setores:', err);
-  }
-}
-
-function previewFoto(event) {
-  const file = event.target.files[0];
-  if (!file) return;
-  fotoMime = file.type;
-  const reader = new FileReader();
-  reader.onload = function (e) {
-    fotoBase64 = e.target.result.split(',')[1];
-    const img = document.getElementById('foto-nova-preview');
-    img.src = e.target.result;
-    img.style.display = 'block';
-  };
-  reader.readAsDataURL(file);
-}
-
-async function salvar() {
-  if (!itemAtual) return;
-  const localNovo = document.getElementById('campo-local-novo').value.trim();
-  const local = localNovo || document.getElementById('campo-local').value;
-
-  const payload = {
-    ID_INTERNO: itemAtual.ID_INTERNO, // usado pelo backend pra achar a linha na hora de salvar (à prova de ordenação)
-    _linha: itemAtual._linha,          // reserva, só por compatibilidade
-    LOCAL_ATUAL: local,
-    SITUACAO: document.getElementById('campo-situacao').value,
-    OBSERVACOES: document.getElementById('campo-obs').value,
-    DATA_AQUISICAO_IDADE: document.getElementById('campo-idade').value,
-    CODIGO_PREFEITURA: document.getElementById('campo-codigo-prefeitura').value.trim()
-  };
-
-  document.getElementById('status-ficha').innerHTML = 'Salvando...';
-
-  try {
-    const respAtualizar = await apiPost('atualizar', payload);
-    if (!respAtualizar.ok) throw new Error(respAtualizar.erro || 'Falha ao salvar.');
-
-    if (fotoBase64) {
-      const respFoto = await apiPost('foto', { ID_INTERNO: itemAtual.ID_INTERNO, _linha: itemAtual._linha, base64: fotoBase64, mimeType: fotoMime });
-      if (!respFoto.ok) {
-        document.getElementById('status-ficha').innerHTML =
-          '<span class="status-msg erro">Salvo, mas a foto falhou: ' + respFoto.erro + '</span>';
-        return;
-      }
-    }
-    finalizarSalvamento();
-  } catch (err) {
-    document.getElementById('status-ficha').innerHTML =
-      '<span class="status-msg erro">Erro ao salvar: ' + err.message + '</span>';
-  }
-}
-
-function finalizarSalvamento() {
-  document.getElementById('status-ficha').innerHTML =
-    '<span class="status-msg ok">✅ Conferido e salvo com sucesso!</span>';
-  atualizarMiniProgresso();
-  setTimeout(voltarInicio, 1200);
-}
-
-function voltarInicio() {
-  itemAtual = null;
-  document.getElementById('tela-ficha').style.display = 'none';
-  document.getElementById('tela-sala').style.display = 'none';
-  document.getElementById('tela-cadastro').style.display = 'none';
-  document.getElementById('tela-progresso').style.display = 'none';
-  document.getElementById('tela-baixas').style.display = 'none';
-  document.getElementById('tela-baixa').style.display = 'none';
-  baixaAtual = null;
-  document.getElementById('tela-inicial').style.display = 'block';
-  document.getElementById('input-manual').value = '';
-  document.getElementById('status-inicial').innerHTML = '';
-}
-
-// ===================================================================
-// BAIXAS / TRANSFERÊNCIAS
-// ===================================================================
-// Fluxo: na ficha do item → "Registrar baixa / transferência" → formulário.
-// Enquanto o item não sai da unidade, o registro fica "AGUARDANDO RETIRADA"
-// e o item continua na lista ativa. Quando marcar "o item já foi retirado",
-// ele sai da lista ativa e fica guardado na aba BAIXAS da planilha.
-// O código PAT de um item baixado NUNCA volta a ser oferecido como livre.
-let baixaAtual = null; // { ID_INTERNO, DESCRICAO_ITEM, ULTIMA_SALA, registro? }
-
-function dataParaBR(iso) {            // "2026-11-18" → "18/11/2026"
-  const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  return m ? m[3] + '/' + m[2] + '/' + m[1] : String(iso || '');
-}
-function dataParaISO(br) {            // "18/11/2026" (ou "18/11/2026 10:00") → "2026-11-18"
-  const m = String(br || '').match(/^(\d{2})\/(\d{2})\/(\d{4})/);
-  return m ? m[3] + '-' + m[2] + '-' + m[1] : '';
+function dataHoraBR(v) {
+  if (!v) return '';
+  const d = new Date(v);
+  return isNaN(d) ? String(v) : d.toLocaleDateString('pt-BR') + ' ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 }
 function hojeISO() {
   const d = new Date();
   return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
 }
+function normPat(v) {
+  const s = String(v || '').trim().toUpperCase();
+  const m = s.match(/^PAT-?(\d+)$/);
+  return m ? 'PAT-' + m[1].padStart(4, '0') : s;
+}
 
-function lerArquivoBase64(input) {
-  return new Promise(function (resolve, reject) {
-    const f = input.files && input.files[0];
-    if (!f) return resolve(null);
-    const r = new FileReader();
-    r.onload = function (e) {
-      resolve({ base64: e.target.result.split(',')[1], mimeType: f.type || 'application/octet-stream', nome: f.name });
+// ===================================================================
+// LOGIN
+// ===================================================================
+async function entrar() {
+  const email = $('login-email').value.trim().toLowerCase();
+  const senha = $('login-senha').value;
+  if (!email || !senha) { msg('status-login', 'Preencha e-mail e senha.', 'erro'); return; }
+  msg('status-login', 'Entrando...');
+  const { error } = await sb.auth.signInWithPassword({ email: email, password: senha });
+  if (error) msg('status-login', erroTexto(error), 'erro');
+}
+
+async function criarSenha() {
+  const email = $('login-email').value.trim().toLowerCase();
+  const senha = $('login-senha').value;
+  if (!email) { msg('status-login', 'Digite seu e-mail no campo acima.', 'erro'); return; }
+  if (senha.length < 6) { msg('status-login', 'Digite no campo "Senha" a senha que você quer usar (mínimo 6 caracteres).', 'erro'); return; }
+  msg('status-login', 'Criando...');
+  const { data, error } = await sb.auth.signUp({
+    email: email, password: senha,
+    options: { emailRedirectTo: location.origin + location.pathname }
+  });
+  if (error) { msg('status-login', erroTexto(error), 'erro'); return; }
+  if (data.session) return; // confirmação de e-mail desligada: já entrou
+  msg('status-login', '✅ Pronto! Enviamos um e-mail para <b>' + esc(email) + '</b>. Abra o link de confirmação (veja também o spam) e depois volte aqui para entrar.', 'ok');
+}
+
+async function esqueciSenha() {
+  const email = $('login-email').value.trim().toLowerCase();
+  if (!email) { msg('status-login', 'Digite seu e-mail no campo acima e toque de novo em "Esqueci minha senha".', 'erro'); return; }
+  const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: location.origin + location.pathname });
+  if (error) { msg('status-login', erroTexto(error), 'erro'); return; }
+  msg('status-login', '✅ Se esse e-mail estiver cadastrado, chegará um link para criar uma nova senha.', 'ok');
+}
+
+async function salvarNovaSenha() {
+  const s = $('nova-senha').value;
+  if (s.length < 6) { msg('status-nova-senha', 'Mínimo 6 caracteres.', 'erro'); return; }
+  const { error } = await sb.auth.updateUser({ password: s });
+  if (error) { msg('status-nova-senha', erroTexto(error), 'erro'); return; }
+  emRecuperacao = false;
+  msg('status-nova-senha', '✅ Senha alterada!', 'ok');
+  setTimeout(iniciarSessao, 1000);
+}
+
+async function sair() {
+  await sb.auth.signOut();
+  perfil = null; cacheItens = [];
+  $('login-senha').value = '';
+  mostrar('tela-login');
+}
+
+sb.auth.onAuthStateChange(function (evento, sessao) {
+  if (evento === 'PASSWORD_RECOVERY') { emRecuperacao = true; mostrar('tela-nova-senha'); return; }
+  if (evento === 'SIGNED_IN' && !emRecuperacao && !perfil) setTimeout(iniciarSessao, 0);
+});
+
+async function iniciarSessao() {
+  if (emRecuperacao) { mostrar('tela-nova-senha'); return; }
+  if (iniciando || perfil) return;
+  iniciando = true;
+  const { data } = await sb.auth.getSession();
+  if (!data.session) { iniciando = false; mostrar('tela-login'); return; }
+  try {
+    await sb.rpc('aceitar_convite'); // libera quem foi convidado depois de criar a conta
+    const r = await sb.from('perfis').select('id,nome,papel,ativo,unidade_id,unidades(nome)')
+      .eq('id', data.session.user.id).maybeSingle();
+    if (r.error) throw r.error;
+    if (!r.data || !r.data.ativo) { mostrar('tela-sem-acesso'); return; }
+    perfil = {
+      id: r.data.id, nome: r.data.nome || data.session.user.email, papel: r.data.papel,
+      unidade_id: r.data.unidade_id, unidade_nome: r.data.unidades ? r.data.unidades.nome : ''
     };
-    r.onerror = function () { reject(new Error('Não foi possível ler o arquivo ' + f.name)); };
-    r.readAsDataURL(f);
+    $('usuario-nome').textContent = perfil.nome;
+    $('usuario-papel').textContent = perfil.papel === 'admin' ? '(administrador)' : '';
+    $('btn-equipe').style.display = perfil.papel === 'admin' ? 'block' : 'none';
+    $('btn-duplicados').style.display = perfil.papel === 'admin' ? 'block' : 'none';
+    voltarInicio();
+    carregarItens();
+  } catch (e) {
+    mostrar('tela-login');
+    msg('status-login', 'Erro ao carregar seu perfil: ' + esc(erroTexto(e)), 'erro');
+  } finally {
+    iniciando = false;
+  }
+}
+
+// ===================================================================
+// DADOS
+// ===================================================================
+async function carregarItens() {
+  const todos = [];
+  for (let de = 0; ; de += 1000) {
+    const r = await sb.from('itens').select('*').order('pat').range(de, de + 999);
+    if (r.error) throw r.error;
+    todos.push.apply(todos, r.data);
+    if (r.data.length < 1000) break;
+  }
+  cacheItens = todos;
+  atualizarMiniProgresso();
+  return todos;
+}
+
+function listaSalas() {
+  const s = {};
+  cacheItens.forEach(function (i) { if (i.local_atual) s[i.local_atual.trim()] = true; });
+  return Object.keys(s).sort(function (a, b) { return a.localeCompare(b, 'pt-BR'); });
+}
+
+function preencherSalas(selId, selecionada) {
+  const sel = $(selId);
+  sel.innerHTML = '';
+  const salas = listaSalas();
+  if (selecionada && salas.indexOf(selecionada) === -1) salas.push(selecionada);
+  salas.forEach(function (s) {
+    const o = document.createElement('option');
+    o.value = s; o.textContent = s; if (s === selecionada) o.selected = true;
+    sel.appendChild(o);
   });
 }
 
-function tagStatusBaixa(status) {
-  if (status === 'AGUARDANDO RETIRADA') return '<span class="tag tag-baixa-aguard">aguardando retirada</span>';
-  if (status === 'CONCLUÍDA') return '<span class="tag tag-baixa-ok">baixado</span>';
-  return '<span class="tag tag-baixa-cinza">' + esc(String(status || '').toLowerCase()) + '</span>';
+async function urlAssinada(caminho) {
+  if (!caminho) return null;
+  const r = await sb.storage.from(BUCKET).createSignedUrl(caminho, 3600);
+  return r.error ? null : r.data.signedUrl;
 }
 
+// Reduz a foto antes de enviar (1600px, JPEG) — mais rápido e ocupa menos espaço
+function comprimirImagem(arquivo, maxLado) {
+  maxLado = maxLado || 1600;
+  return new Promise(function (resolve) {
+    if (!/^image\//.test(arquivo.type)) { resolve(arquivo); return; }
+    const img = new Image();
+    const url = URL.createObjectURL(arquivo);
+    img.onload = function () {
+      let w = img.width, h = img.height;
+      const f = Math.min(1, maxLado / Math.max(w, h));
+      w = Math.round(w * f); h = Math.round(h * f);
+      const c = document.createElement('canvas'); c.width = w; c.height = h;
+      c.getContext('2d').drawImage(img, 0, 0, w, h);
+      c.toBlob(function (b) { URL.revokeObjectURL(url); resolve(b || arquivo); }, 'image/jpeg', 0.82);
+    };
+    img.onerror = function () { URL.revokeObjectURL(url); resolve(arquivo); };
+    img.src = url;
+  });
+}
+
+async function enviarArquivo(pasta, nomeBase, arquivo) {
+  const blob = await comprimirImagem(arquivo);
+  const ext = /pdf/i.test(arquivo.type) ? '.pdf' : '.jpg';
+  const caminho = perfil.unidade_id + '/' + pasta + '/' + nomeBase + '_' + Date.now() + ext;
+  const r = await sb.storage.from(BUCKET).upload(caminho, blob, {
+    contentType: /pdf/i.test(arquivo.type) ? 'application/pdf' : 'image/jpeg', upsert: false
+  });
+  if (r.error) throw r.error;
+  return caminho;
+}
+
+// ===================================================================
+// LEITOR BLUETOOTH (HID) E CÂMERA
+// ===================================================================
+const inputManual = $('input-manual');
+let digitacaoIniciadaEm = null;
+inputManual.addEventListener('keydown', function (e) {
+  if (e.key === 'Enter' || e.keyCode === 13) { e.preventDefault(); buscarManual(); }
+});
+inputManual.addEventListener('input', function (e) {
+  const v = inputManual.value.trim();
+  if (v.length <= 1) digitacaoIniciadaEm = Date.now();
+  const bulk = e.inputType === 'insertFromPaste' || e.inputType === 'insertFromDrop';
+  const tempo = digitacaoIniciadaEm ? (Date.now() - digitacaoIniciadaEm) : 9999;
+  if ((bulk || tempo < 400) && (/^PAT-\d{3,6}$/i.test(v) || /^\d{4,10}$/.test(v))) setTimeout(buscarManual, 100);
+});
+
+async function iniciarScanner() {
+  $('video-wrap').style.display = 'block';
+  $('status-inicial').innerHTML = '';
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    msg('status-inicial', 'Este navegador não permite usar a câmera aqui. Use a busca manual.', 'erro');
+    pararScanner(); return;
+  }
+  codeReader = new ZXing.BrowserMultiFormatReader();
+  try {
+    await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+    const devices = await codeReader.listVideoInputDevices();
+    if (!devices.length) throw new Error('Nenhuma câmera encontrada.');
+    const device = devices.find(function (d) { return /back|traseira|rear|environment/i.test(d.label); }) || devices[devices.length - 1];
+    codeReader.decodeFromVideoDevice(device.deviceId, 'video-preview', function (result) {
+      if (result) { pararScanner(); buscar(result.getText()); }
+    });
+  } catch (e) {
+    let m = 'Não foi possível acessar a câmera: ' + e.message;
+    if (e.name === 'NotAllowedError') m = 'Permissão de câmera negada. Libere a câmera para este site (cadeado ao lado do endereço) e recarregue.';
+    msg('status-inicial', m, 'erro');
+    pararScanner();
+  }
+}
+function pararScanner() {
+  if (codeReader) { try { codeReader.reset(); } catch (e) {} }
+  $('video-wrap').style.display = 'none';
+}
+function buscarManual() {
+  const v = inputManual.value.trim();
+  if (!v) return;
+  inputManual.value = '';
+  buscar(v);
+}
+
+// ===================================================================
+// BUSCA E FICHA
+// ===================================================================
+async function buscar(codigo) {
+  const bruto = String(codigo).trim();
+  const pat = normPat(bruto);
+  msg('status-inicial', 'Buscando ' + esc(bruto) + '...');
+  try {
+    const r = await sb.from('itens').select('*')
+      .or('pat.eq."' + pat + '",codigo_prefeitura.eq."' + bruto + '"').limit(1);
+    if (r.error) throw r.error;
+    if (r.data.length) { itemAtual = r.data[0]; mostrarFicha(itemAtual); return; }
+    if (await mostrarSeFoiUnificado(pat, bruto)) return;
+    if (await mostrarSeFoiBaixado(pat, bruto)) return;
+    msg('status-inicial', 'Código não encontrado: ' + esc(bruto), 'erro');
+  } catch (e) {
+    msg('status-inicial', 'Erro: ' + esc(erroTexto(e)), 'erro');
+  }
+}
+
+async function mostrarFicha(item) {
+  mostrar('tela-ficha');
+  $('status-ficha').innerHTML = '';
+  $('ficha-descricao').textContent = item.descricao || '(sem descrição)';
+  $('ficha-id').textContent = item.pat;
+  $('ficha-setor-orig').textContent = item.setor_lista_original || '—';
+  $('campo-codigo-prefeitura').value = item.codigo_prefeitura || '';
+  $('ficha-valor').textContent = item.valor_aquisicao
+    ? 'R$ ' + item.valor_aquisicao + (item.data_aquisicao_idade ? ' (' + item.data_aquisicao_idade + ')' : '')
+    : 'não informado';
+  $('ficha-conferencia').innerHTML = (dataHoraBR(item.data_ultima_conferencia) || 'nunca') +
+    (item.conferido_nesta_rodada
+      ? ' <span style="color:var(--verde);">• já conferido nesta rodada</span>'
+      : ' <span style="color:var(--amarelo);">• pendente nesta rodada</span>');
+  const badge = $('badge-status');
+  badge.textContent = item.status_etiqueta || '';
+  badge.className = 'badge ' + (item.status_etiqueta === 'COM CÓDIGO PREFEITURA' ? 'badge-ok'
+    : /DUVIDOSO/.test(item.status_etiqueta || '') ? 'badge-duvidoso' : 'badge-pendente');
+  $('campo-situacao').value = item.situacao || 'BOM';
+  $('campo-idade').value = item.data_aquisicao_idade || '';
+  $('campo-obs').value = item.observacoes || '';
+  $('campo-local-novo').value = '';
+  preencherSalas('campo-local', item.local_atual);
+  fotoArquivo = null;
+  $('campo-foto').value = '';
+  $('foto-nova-preview').style.display = 'none';
+  $('btn-ficha-unificar').style.display = perfil && perfil.papel === 'admin' ? 'block' : 'none';
+  $('ficha-hist').open = false;
+  $('ficha-hist-lista').innerHTML = '';
+
+  const foto = $('foto-atual');
+  foto.style.display = 'none';
+  if (item.foto_path) {
+    const u = await urlAssinada(item.foto_path);
+    if (u && itemAtual && itemAtual.pat === item.pat) { foto.src = u; foto.style.display = 'block'; }
+  }
+  verificarBaixaNaFicha(item.pat);
+}
+
+function previewFoto(ev) {
+  const f = ev.target.files[0];
+  if (!f) return;
+  fotoArquivo = f;
+  const img = $('foto-nova-preview');
+  img.src = URL.createObjectURL(f);
+  img.style.display = 'block';
+}
+
+async function salvar() {
+  if (!itemAtual) return;
+  const local = $('campo-local-novo').value.trim() || $('campo-local').value;
+  const dados = {
+    local_atual: local,
+    situacao: $('campo-situacao').value,
+    observacoes: $('campo-obs').value,
+    data_aquisicao_idade: $('campo-idade').value,
+    codigo_prefeitura: $('campo-codigo-prefeitura').value.trim() || null,
+    conferido_nesta_rodada: true,
+    data_ultima_conferencia: new Date().toISOString()
+  };
+  msg('status-ficha', 'Salvando...');
+  try {
+    if (fotoArquivo) {
+      msg('status-ficha', 'Enviando a foto...');
+      dados.foto_path = await enviarArquivo('itens', itemAtual.pat, fotoArquivo);
+    }
+    const r = await sb.from('itens').update(dados).eq('id', itemAtual.id).select().single();
+    if (r.error) throw r.error;
+    const i = cacheItens.findIndex(function (x) { return x.id === r.data.id; });
+    if (i >= 0) cacheItens[i] = r.data; else cacheItens.push(r.data);
+    atualizarMiniProgresso();
+    msg('status-ficha', '✅ Conferido e salvo com sucesso!', 'ok');
+    setTimeout(voltarInicio, 1100);
+  } catch (e) {
+    msg('status-ficha', 'Erro ao salvar: ' + esc(erroTexto(e)), 'erro');
+  }
+}
+
+async function carregarHistoricoItem() {
+  if (!itemAtual) return;
+  const div = $('ficha-hist-lista');
+  div.innerHTML = '<div class="info-linha">Carregando...</div>';
+  const r = await sb.from('historico').select('*').eq('pat', itemAtual.pat).order('criado_em', { ascending: false }).limit(60);
+  if (r.error) { div.innerHTML = '<div class="status-msg erro">' + esc(erroTexto(r.error)) + '</div>'; return; }
+  if (!r.data.length) { div.innerHTML = '<div class="info-linha">Nenhuma alteração registrada.</div>'; return; }
+  div.innerHTML = r.data.map(function (h) {
+    const campo = String(h.campo || '').replace(/_/g, ' ').toLowerCase();
+    return '<div class="hist-linha"><b>' + esc(dataHoraBR(h.criado_em)) + '</b> · ' + esc(h.usuario_nome || '—') +
+      '<br>' + esc(campo) + ': ' + (h.valor_anterior ? '<s>' + esc(h.valor_anterior) + '</s> → ' : '') + esc(h.valor_novo) + '</div>';
+  }).join('');
+}
+
+// ===================================================================
+// MINI-PROGRESSO E PROGRESSO
+// ===================================================================
+function contarProgresso() {
+  const porSala = {};
+  let conf = 0, semCod = 0;
+  cacheItens.forEach(function (i) {
+    const s = (i.local_atual || '(sem sala)').trim();
+    if (!porSala[s]) porSala[s] = { sala: s, total: 0, conferidos: 0, semCodigo: 0 };
+    porSala[s].total++;
+    if (i.conferido_nesta_rodada) { conf++; porSala[s].conferidos++; }
+    if (!temCodPref(i)) { semCod++; porSala[s].semCodigo++; }
+  });
+  return {
+    total: cacheItens.length, conferidos: conf, pendentes: cacheItens.length - conf, semCodigo: semCod,
+    porSala: Object.values(porSala).sort(function (a, b) { return a.sala.localeCompare(b.sala, 'pt-BR'); })
+  };
+}
+function atualizarMiniProgresso() {
+  if (!cacheItens.length) return;
+  const p = contarProgresso();
+  const pct = Math.round(p.conferidos / p.total * 100);
+  $('mini-progresso-num').textContent = p.conferidos + '/' + p.total + ' conferidos (' + pct + '%)';
+  $('mini-progresso-barra').style.width = pct + '%';
+  $('mini-progresso').style.display = 'block';
+}
+async function abrirProgresso() {
+  mostrar('tela-progresso');
+  $('status-progresso').innerHTML = '';
+  $('btn-nova-rodada').style.display = perfil.papel === 'admin' ? 'block' : 'none';
+  $('resumo-progresso').innerHTML = '<div class="status-msg">Carregando...</div>';
+  $('lista-progresso').innerHTML = '';
+  try { await carregarItens(); } catch (e) {}
+  const p = contarProgresso();
+  const pct = p.total ? Math.round(p.conferidos / p.total * 100) : 0;
+  $('resumo-progresso').innerHTML =
+    '<div class="resumo-caixa">' +
+    '<div><div class="resumo-numero">' + p.total + '</div><div class="resumo-label">TOTAL</div></div>' +
+    '<div><div class="resumo-numero" style="color:var(--verde)">' + p.conferidos + '</div><div class="resumo-label">CONFERIDOS</div></div>' +
+    '<div><div class="resumo-numero" style="color:var(--amarelo)">' + p.pendentes + '</div><div class="resumo-label">PENDENTES</div></div></div>' +
+    '<div class="barra-fundo"><div class="barra-preenchida" style="width:' + pct + '%"></div></div>' +
+    '<div style="text-align:center;font-size:12px;color:var(--cinza);margin-top:4px;">' + pct + '% conferido no geral</div>' +
+    '<div style="text-align:center;font-size:12px;margin-top:6px;">🟠 <b style="color:#C55A11">' + p.semCodigo + '</b> itens ainda sem código da prefeitura</div>';
+  $('lista-progresso').innerHTML = p.porSala.map(function (s) {
+    const ps = s.total ? Math.round(s.conferidos / s.total * 100) : 0;
+    return '<div class="linha-progresso-sala"><div class="topo"><span>' + esc(s.sala) + '</span><span>' + s.conferidos + '/' + s.total +
+      '</span></div><div class="barra-fundo"><div class="barra-preenchida" style="width:' + ps + '%"></div></div>' +
+      (s.semCodigo ? '<div style="font-size:11px;color:#C55A11;margin-top:2px;">🟠 ' + s.semCodigo + ' sem código da prefeitura</div>' : '') + '</div>';
+  }).join('');
+}
+async function novaRodada() {
+  if (!confirm('Iniciar uma NOVA rodada de conferência?\n\nTodos os itens voltam para "pendente". As datas da última conferência e todo o histórico continuam guardados.')) return;
+  msg('status-progresso', 'Iniciando nova rodada...');
+  const r = await sb.rpc('iniciar_nova_rodada');
+  if (r.error) { msg('status-progresso', esc(erroTexto(r.error)), 'erro'); return; }
+  await abrirProgresso();
+  msg('status-progresso', '✅ Nova rodada iniciada (' + r.data + ' itens voltaram para pendente).', 'ok');
+}
+
+// ===================================================================
+// SALAS, RELATÓRIO E ETIQUETAS
+// ===================================================================
+function abrirFiltroSala() {
+  mostrar('tela-sala');
+  $('lista-sala').innerHTML = '';
+  $('status-relatorio').innerHTML = '';
+  preencherSalas('select-sala');
+}
+function itensDaSala(sala) {
+  return cacheItens.filter(function (i) { return (i.local_atual || '').trim() === sala; })
+    .sort(function (a, b) { return String(a.descricao).localeCompare(String(b.descricao), 'pt-BR'); });
+}
+async function listarItensDaSala() {
+  const sala = $('select-sala').value;
+  const div = $('lista-sala');
+  div.innerHTML = '<div class="status-msg">Carregando...</div>';
+  try { await carregarItens(); } catch (e) {}
+  const todos = itensDaSala(sala);
+  if (!todos.length) { div.innerHTML = '<div class="status-msg">Nenhum item nessa sala.</div>'; return; }
+  const comCod = todos.filter(temCodPref).length;
+  const f = $('filtro-codpref').value;
+  const itens = todos.filter(function (i) { return !f || (f === 'ok' ? temCodPref(i) : !temCodPref(i)); });
+  div.innerHTML = '<div class="info-linha"><b>' + todos.length + '</b> itens · 🟢 <b>' + comCod + '</b> com código da prefeitura · 🟠 <b>' +
+    (todos.length - comCod) + '</b> sem</div>' +
+    '<div class="legenda"><span class="lg-ok">tem código da prefeitura</span><span class="lg-falta">só etiqueta PAT</span></div>';
+  if (!itens.length) { div.innerHTML += '<div class="status-msg">Nenhum item com esse filtro.</div>'; return; }
+  itens.forEach(function (item) { div.appendChild(linhaItem(item, true)); });
+}
+
+function temCodPref(i) { return !!String(i.codigo_prefeitura || '').trim(); }
+
+// Linha de item colorida: verde = tem código da prefeitura, laranja = só PAT
+function linhaItem(item, mostrarConferido) {
+  const row = document.createElement('div');
+  const ok = temCodPref(item);
+  row.className = 'item-lista ' + (ok ? 'cod-ok' : 'cod-falta');
+  row.innerHTML = '<span class="nome">' + esc(item.descricao) + ' <span style="color:#777">(' + esc(item.pat) + ')</span>' +
+    '<br><span style="font-size:11px;color:#555">' + (ok ? 'Pref. ' + esc(item.codigo_prefeitura) : 'sem código da prefeitura') + '</span></span>' +
+    (mostrarConferido ? '<span class="tag ' + (item.conferido_nesta_rodada ? 'tag-ok' : 'tag-pendente') + '" style="background:#fff">' +
+      (item.conferido_nesta_rodada ? 'conferido' : 'pendente') + '</span>' : '');
+  row.onclick = function () { itemAtual = item; mostrarFicha(item); };
+  return row;
+}
+
+// ---------- LISTA GERAL: SEM CÓDIGO DA PREFEITURA ----------
+function gruposSemCodigo() {
+  const g = {};
+  cacheItens.filter(function (i) { return !temCodPref(i); }).forEach(function (i) {
+    const s = (i.local_atual || '(sem sala)').trim();
+    (g[s] = g[s] || []).push(i);
+  });
+  return Object.keys(g).sort(function (a, b) { return a.localeCompare(b, 'pt-BR'); }).map(function (s) {
+    return { sala: s, itens: g[s].sort(function (a, b) { return String(a.descricao).localeCompare(String(b.descricao), 'pt-BR'); }) };
+  });
+}
+async function abrirSemCodigo() {
+  mostrar('tela-sem-codigo');
+  $('lista-sem-codigo').innerHTML = '<div class="status-msg">Carregando...</div>';
+  try { await carregarItens(); } catch (e) {}
+  const grupos = gruposSemCodigo();
+  const falta = grupos.reduce(function (n, g) { return n + g.itens.length; }, 0);
+  const total = cacheItens.length;
+  const pct = total ? Math.round((total - falta) / total * 100) : 0;
+  $('resumo-sem-codigo').innerHTML =
+    '<div class="resumo-caixa">' +
+    '<div><div class="resumo-numero">' + total + '</div><div class="resumo-label">TOTAL</div></div>' +
+    '<div><div class="resumo-numero" style="color:var(--verde)">' + (total - falta) + '</div><div class="resumo-label">🟢 COM CÓDIGO</div></div>' +
+    '<div><div class="resumo-numero" style="color:#C55A11">' + falta + '</div><div class="resumo-label">🟠 SEM CÓDIGO</div></div></div>' +
+    '<div class="barra-fundo"><div class="barra-preenchida" style="width:' + pct + '%"></div></div>' +
+    '<div style="text-align:center;font-size:12px;color:var(--cinza);margin:4px 0 8px;">' + pct + '% já têm código da prefeitura</div>';
+  const div = $('lista-sem-codigo');
+  div.innerHTML = grupos.length ? '' : '<div class="status-msg ok">Todos os itens têm código da prefeitura! ✅</div>';
+  grupos.forEach(function (g) {
+    const det = document.createElement('details');
+    det.style.marginBottom = '8px';
+    det.innerHTML = '<summary style="cursor:pointer;font-weight:600;font-size:14px;color:var(--azul);padding:6px 0;">' +
+      esc(g.sala) + ' <span style="color:#C55A11">(' + g.itens.length + ')</span></summary>';
+    g.itens.forEach(function (i) { det.appendChild(linhaItem(i, false)); });
+    div.appendChild(det);
+  });
+}
+function imprimirSemCodigo() {
+  const w = abrirJanela('Itens sem código da prefeitura', CSS_DOC);
+  if (!w) return;
+  const grupos = gruposSemCodigo();
+  const falta = grupos.reduce(function (n, g) { return n + g.itens.length; }, 0);
+  let h = cabecalhoDoc() + '<h1>Itens sem código da prefeitura</h1>' +
+    '<div class="sub">Gerado em ' + dataHoraBR(new Date()) + ' por ' + esc(perfil.nome) + ' — ' + falta + ' de ' + cacheItens.length + ' itens</div>';
+  grupos.forEach(function (g) {
+    h += '<h2>' + esc(g.sala) + ' (' + g.itens.length + ')</h2><table><tr><th style="width:18%">Código</th><th>Descrição</th><th style="width:16%">Situação</th><th style="width:22%">Cód. prefeitura (anotar)</th></tr>' +
+      g.itens.map(function (i) {
+        return '<tr style="background:#FCE4D6"><td>' + esc(i.pat) + '</td><td>' + esc(i.descricao) + '</td><td>' + esc(i.situacao || '—') + '</td><td></td></tr>';
+      }).join('') + '</table>';
+  });
+  h += '<div class="rod">Desenvolvido por antonioresolve.com</div>';
+  const c = w.document.getElementById('conteudo');
+  c.style.padding = '0'; c.innerHTML = h;
+  imprimirQuandoPronto(w);
+}
+
+// Janela de impressão aberta JÁ no clique (evita bloqueio de pop-up)
+function abrirJanela(titulo, css) {
+  const w = window.open('', '_blank');
+  if (!w) { alert('O navegador bloqueou a janela. Permita pop-ups para este site.'); return null; }
+  w.document.write('<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + esc(titulo) + '</title><style>' + css +
+    '</style></head><body><div id="conteudo" style="font-family:Arial;padding:20px;">Gerando...</div></body></html>');
+  w.document.close();
+  return w;
+}
+function imprimirQuandoPronto(w) {
+  const imgs = Array.from(w.document.images);
+  let falta = imgs.filter(function (i) { return !i.complete; }).length;
+  const ir = function () { setTimeout(function () { try { w.focus(); w.print(); } catch (e) {} }, 400); };
+  if (!falta) { ir(); return; }
+  imgs.forEach(function (i) { if (!i.complete) i.onload = i.onerror = function () { if (--falta === 0) ir(); }; });
+  setTimeout(ir, 15000); // não espera para sempre
+}
+const LOGO_URL = new URL('logo-nova-mutum.png', location.href).href;
+const CSS_DOC = '@page{size:A4;margin:14mm}body{font-family:Montserrat,Arial,sans-serif;color:#222;font-size:11pt}' +
+  '.cab{display:flex;align-items:center;gap:12px;border-bottom:3px solid #B7D34A;padding-bottom:8px;margin-bottom:14px}' +
+  '.cab img{height:56px}.cab .t1{font-weight:700;color:#0F4B3D;font-size:13pt}.cab .t2{font-size:9pt;color:#555}' +
+  'h1{font-size:15pt;color:#0F4B3D;text-align:center;margin:6px 0}h2{font-size:12pt;color:#0F4B3D;margin:18px 0 6px}' +
+  '.sub{text-align:center;font-size:9pt;color:#666;font-style:italic;margin-bottom:10px}' +
+  'table{width:100%;border-collapse:collapse;font-size:9.5pt}th{background:#0F4B3D;color:#fff;text-align:left;padding:5px}' +
+  'td{border-bottom:1px solid #ddd;padding:4px 5px;vertical-align:top}td.vazio{background:#FFF2CC}' +
+  '.kv td:first-child{width:38%;background:#EEF5DA;font-weight:700}' +
+  '.galeria{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.galeria div{text-align:center;font-size:8pt;break-inside:avoid}' +
+  '.galeria img{width:100%;height:120px;object-fit:contain;background:#f4f4f4}' +
+  '.ass{display:flex;gap:30px;margin-top:50px;text-align:center;font-size:9pt}.ass div{flex:1;border-top:1px solid #333;padding-top:4px}' +
+  '.rod{text-align:center;font-size:7pt;color:#999;margin-top:24px}';
+function cabecalhoDoc() {
+  return '<div class="cab"><img src="' + LOGO_URL + '"><div><div class="t1">PREFEITURA MUNICIPAL DE NOVA MUTUM</div>' +
+    '<div class="t2">Secretaria Municipal de Saúde — ' + esc(perfil.unidade_nome || 'ESF Flor do Cerrado') + '</div></div></div>';
+}
+
+async function gerarRelatorioSala() {
+  const sala = $('select-sala').value;
+  const w = abrirJanela('Relatório ' + sala, CSS_DOC);
+  if (!w) return;
+  try {
+    await carregarItens();
+    const itens = itensDaSala(sala);
+    const comFoto = itens.filter(function (i) { return i.foto_path; });
+    let urls = {};
+    if (comFoto.length) {
+      const r = await sb.storage.from(BUCKET).createSignedUrls(comFoto.map(function (i) { return i.foto_path; }), 3600);
+      if (!r.error) r.data.forEach(function (x) { urls[x.path] = x.signedUrl; });
+    }
+    let h = cabecalhoDoc() + '<h1>Relatório de Patrimônio — ' + esc(sala) + '</h1>' +
+      '<div class="sub">Gerado em ' + dataHoraBR(new Date()) + ' por ' + esc(perfil.nome) + ' — ' + itens.length + ' item(ns)</div>' +
+      '<table><tr><th>Código</th><th>Descrição</th><th>Situação</th><th>Código Prefeitura</th><th>Conferido</th></tr>' +
+      itens.map(function (i) {
+        return '<tr style="background:' + (temCodPref(i) ? '#E2EFDA' : '#FCE4D6') + '"><td>' + esc(i.pat) + '</td><td>' + esc(i.descricao) + '</td><td' + (i.situacao ? '' : ' class="vazio"') + '>' +
+          esc(i.situacao || '—') + '</td><td>' + esc(i.codigo_prefeitura || '—') + '</td><td>' + (i.conferido_nesta_rodada ? 'Sim' : 'Não') + '</td></tr>';
+      }).join('') + '</table>';
+    if (comFoto.length) {
+      h += '<h2 style="page-break-before:always">Galeria de fotos</h2><div class="galeria">' + comFoto.map(function (i) {
+        return '<div><img src="' + esc(urls[i.foto_path] || '') + '"><br><b>' + esc(i.pat) + '</b>' +
+          (i.codigo_prefeitura ? '<br>(Prefeitura: ' + esc(i.codigo_prefeitura) + ')' : '') + '<br>' + esc(String(i.descricao).slice(0, 60)) + '</div>';
+      }).join('') + '</div>';
+    }
+    h += '<p style="text-align:center;margin-top:40px">Nova Mutum/MT, ______ de ____________________ de __________</p>' +
+      '<div class="ass"><div>Responsável pela conferência<br>Nome / Matrícula</div></div>' +
+      '<div class="rod">Desenvolvido por antonioresolve.com</div>';
+    w.document.getElementById('conteudo').innerHTML = h;
+    w.document.getElementById('conteudo').style.padding = '0';
+    imprimirQuandoPronto(w);
+    msg('status-relatorio', '✅ Relatório aberto. Na tela de impressão, escolha "Salvar como PDF" ou a impressora.', 'ok');
+  } catch (e) {
+    w.document.getElementById('conteudo').textContent = 'Erro: ' + erroTexto(e);
+  }
+}
+
+const CSS_ETIQUETAS = '@page{size:A4;margin:8mm}body{margin:0;font-family:Arial,Helvetica,sans-serif}' +
+  '#grade{display:grid;grid-template-columns:repeat(3,1fr)}' +
+  '.etq{border:0.4px solid #ccc;height:34.5mm;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;' +
+  'padding:2mm 2mm 1mm;text-align:center;overflow:hidden;page-break-inside:avoid;break-inside:avoid}' +
+  '.bc svg{height:9mm;max-width:56mm}.pat{font-weight:bold;font-size:10pt;margin-top:0.5mm}' +
+  '.desc{font-size:6pt;line-height:1.25;max-height:6.2mm;overflow:hidden}.sala{font-size:6pt;font-style:italic;color:#333;margin-top:0.8mm}' +
+  '.rodape{font-size:4.5pt;color:#777;margin-top:auto}';
+function svgCodigoBarras(t) {
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  JsBarcode(svg, t, { format: 'CODE128', displayValue: false, height: 38, width: 1.4, margin: 0 });
+  return svg.outerHTML;
+}
+function htmlEtiqueta(pat, desc, sala) {
+  return '<div class="etq"><div class="bc">' + svgCodigoBarras(pat) + '</div><div class="pat">' + esc(pat) + '</div>' +
+    '<div class="desc">' + esc(desc) + '</div><div class="sala">' + esc(sala) + '</div><div class="rodape">' +
+    esc((perfil.unidade_nome || 'ESF FLOR DO CERRADO').toUpperCase()) + '</div></div>';
+}
+function preencherEtiquetas(w, html) {
+  const c = w.document.getElementById('conteudo');
+  c.style.padding = '0';
+  c.innerHTML = '<div id="grade">' + html + '</div>';
+  setTimeout(function () { try { w.focus(); w.print(); } catch (e) {} }, 500);
+}
+function imprimirEtiquetaItem() {
+  if (!itemAtual) return;
+  const w = abrirJanela('Etiqueta ' + itemAtual.pat, CSS_ETIQUETAS);
+  if (!w) return;
+  const sala = $('campo-local-novo').value.trim() || $('campo-local').value || itemAtual.local_atual || '';
+  preencherEtiquetas(w, htmlEtiqueta(itemAtual.pat, itemAtual.descricao || '', sala));
+}
+async function imprimirEtiquetasSala() {
+  const sala = $('select-sala').value;
+  const so = $('chk-etq-conferidos').checked;
+  const w = abrirJanela('Etiquetas ' + sala, CSS_ETIQUETAS);
+  if (!w) return;
+  try { await carregarItens(); } catch (e) {}
+  let itens = itensDaSala(sala);
+  if (so) itens = itens.filter(function (i) { return i.conferido_nesta_rodada; });
+  if (!itens.length) { w.document.getElementById('conteudo').textContent = 'Nenhum item para etiquetar nessa sala.'; return; }
+  preencherEtiquetas(w, itens.map(function (i) { return htmlEtiqueta(i.pat, i.descricao || '', i.local_atual || sala); }).join(''));
+}
+
+// ===================================================================
+// CÓDIGOS LIVRES E CADASTRO
+// ===================================================================
+async function verCodigosLivres() {
+  msg('status-inicial', 'Consultando a sequência...');
+  const r = await sb.rpc('codigos_livres');
+  if (r.error) { msg('status-inicial', esc(erroTexto(r.error)), 'erro'); return; }
+  const livres = r.data.faltantes.length ? '<b>' + r.data.faltantes.join('</b> · <b>') + '</b>' : 'nenhum — sequência completa ✅';
+  $('status-inicial').innerHTML = '<span class="status-msg">Códigos livres (nunca usados): ' + livres +
+    '<br>Próximo código novo: <b>' + r.data.proximo + '</b><br><span style="font-size:11px;color:var(--cinza);">' +
+    'Códigos de itens baixados ficam bloqueados para sempre e não aparecem aqui.</span></span>';
+}
+async function abrirCadastroNovo() {
+  mostrar('tela-cadastro');
+  $('novo-descricao').value = ''; $('novo-obs').value = ''; $('novo-local-novo').value = '';
+  $('status-cadastro').innerHTML = '';
+  preencherSalas('novo-local');
+  const sel = $('novo-codigo');
+  sel.innerHTML = '<option value="">Automático (próximo da sequência)</option>';
+  const r = await sb.rpc('codigos_livres');
+  if (!r.error) {
+    sel.options[0].textContent = 'Automático (próximo: ' + r.data.proximo + ')';
+    r.data.faltantes.forEach(function (c) {
+      const o = document.createElement('option'); o.value = c; o.textContent = 'Reaproveitar ' + c + ' (nunca usado)'; sel.appendChild(o);
+    });
+  }
+}
+async function salvarNovoItem() {
+  const desc = $('novo-descricao').value.trim();
+  if (!desc) { msg('status-cadastro', 'Descreva o item antes de salvar.', 'erro'); return; }
+  msg('status-cadastro', 'Salvando...');
+  const r = await sb.rpc('cadastrar_item', {
+    p_descricao: desc,
+    p_local: $('novo-local-novo').value.trim() || $('novo-local').value,
+    p_situacao: $('novo-situacao').value,
+    p_observacoes: $('novo-obs').value,
+    p_pat_desejado: $('novo-codigo').value || null
+  });
+  if (r.error) { msg('status-cadastro', 'Erro: ' + esc(erroTexto(r.error)), 'erro'); return; }
+  msg('status-cadastro', '✅ Cadastrado como <b>' + esc(r.data) + '</b>! Já dá para imprimir a etiqueta pela ficha dele.', 'ok');
+  carregarItens().catch(function () {});
+  setTimeout(function () { buscar(r.data); }, 1800);
+}
+
+// ===================================================================
+// EXPORTAR (Excel abre arquivos .csv)
+// ===================================================================
+async function exportarInventario() {
+  msg('status-inicial', 'Preparando o arquivo...');
+  try {
+    await carregarItens();
+    const b = await sb.from('baixas').select('*').order('registrado_em');
+    const col = ['pat', 'codigo_prefeitura', 'descricao', 'local_atual', 'situacao', 'status_etiqueta', 'observacoes',
+      'conferido_nesta_rodada', 'data_ultima_conferencia', 'data_aquisicao_idade', 'valor_aquisicao', 'setor_lista_original'];
+    const cab = ['CÓDIGO', 'CÓD. PREFEITURA', 'DESCRIÇÃO', 'SALA', 'SITUAÇÃO', 'ETIQUETA', 'OBSERVAÇÕES', 'CONFERIDO NA RODADA',
+      'ÚLTIMA CONFERÊNCIA', 'AQUISIÇÃO/IDADE', 'VALOR AQUISIÇÃO', 'SETOR ORIGINAL'];
+    const cel = function (v) { return '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"'; };
+    let csv = cab.map(cel).join(';') + '\n' + cacheItens.map(function (i) {
+      return col.map(function (c) {
+        let v = i[c];
+        if (c === 'conferido_nesta_rodada') v = v ? 'SIM' : 'NÃO';
+        if (c === 'data_ultima_conferencia') v = dataHoraBR(v);
+        if (c === 'codigo_prefeitura' && v) v = '="' + v + '"'; // mantém zeros à esquerda no Excel
+        return c === 'codigo_prefeitura' && v ? v : cel(v);
+      }).join(';');
+    }).join('\n');
+    if (!b.error && b.data.length) {
+      csv += '\n\n' + ['BAIXAS / TRANSFERÊNCIAS', '', '', '', '', '', '', '', ''].map(cel).join(';') + '\n' +
+        ['CÓDIGO', 'DESCRIÇÃO', 'ÚLTIMA SALA', 'TIPO', 'SITUAÇÃO', 'SOLICITADA EM', 'MOTIVO', 'DESTINO', 'RETIRADA EM', 'RETIRADO POR', 'Nº TERMO']
+          .map(cel).join(';') + '\n' +
+        b.data.map(function (x) {
+          return [x.pat, x.descricao, x.ultima_sala, x.tipo, x.status, dataBR(x.data_solicitacao), x.motivo, x.destino,
+            dataBR(x.data_retirada), x.retirado_por, x.num_termo_processo].map(cel).join(';');
+        }).join('\n');
+    }
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'Patrimonio_' + (perfil.unidade_nome || 'unidade').replace(/\s+/g, '_') + '_' + hojeISO() + '.csv';
+    document.body.appendChild(a); a.click(); a.remove();
+    msg('status-inicial', '✅ Arquivo baixado (abre no Excel ou no LibreOffice).', 'ok');
+  } catch (e) {
+    msg('status-inicial', 'Erro: ' + esc(erroTexto(e)), 'erro');
+  }
+}
+
+// ===================================================================
+// BAIXAS / TRANSFERÊNCIAS
+// ===================================================================
+function tagStatusBaixa(s) {
+  if (s === 'AGUARDANDO RETIRADA') return '<span class="tag tag-baixa-aguard">aguardando retirada</span>';
+  if (s === 'CONCLUÍDA') return '<span class="tag tag-baixa-ok">baixado</span>';
+  return '<span class="tag tag-baixa-cinza">' + esc(String(s || '').toLowerCase()) + '</span>';
+}
 function resumoBaixaHtml(r) {
-  return '<b>' + esc(r.TIPO_BAIXA || 'Baixa') + '</b>' +
-    (r.DESTINO ? ' → ' + esc(r.DESTINO) : '') +
-    '<br>Solicitada em ' + esc(r.DATA_SOLICITACAO || '—') + (r.SOLICITANTE ? ' por ' + esc(r.SOLICITANTE) : '') +
-    (r.DATA_RETIRADA ? '<br>Retirado em ' + esc(r.DATA_RETIRADA) + ' por ' + esc(r.RETIRADO_POR || '—') : '') +
-    (r.MOTIVO ? '<br>Motivo: ' + esc(r.MOTIVO) : '');
+  return '<b>' + esc(r.tipo || 'Baixa') + '</b>' + (r.destino ? ' → ' + esc(r.destino) : '') +
+    '<br>Solicitada em ' + esc(dataBR(r.data_solicitacao) || '—') + (r.solicitante ? ' por ' + esc(r.solicitante) : '') +
+    (r.data_retirada ? '<br>Retirado em ' + esc(dataBR(r.data_retirada)) + ' por ' + esc(r.retirado_por || '—') : '') +
+    (r.motivo ? '<br>Motivo: ' + esc(r.motivo) : '');
 }
-
-// Na ficha: avisa se o item já tem baixa em aberto
-async function verificarBaixaNaFicha(id) {
-  const aviso = document.getElementById('ficha-aviso-baixa');
-  const botao = document.getElementById('btn-ficha-baixa');
+async function baixaAtivaDe(pat) {
+  const r = await sb.from('baixas').select('*').eq('pat', pat).order('registrado_em', { ascending: false });
+  if (r.error || !r.data.length) return { ativa: null, ultima: null };
+  return {
+    ativa: r.data.find(function (b) { return b.status === 'AGUARDANDO RETIRADA' || b.status === 'CONCLUÍDA'; }) || null,
+    ultima: r.data[0]
+  };
+}
+async function verificarBaixaNaFicha(pat) {
+  const aviso = $('ficha-aviso-baixa'), botao = $('btn-ficha-baixa');
   aviso.style.display = 'none';
   botao.textContent = '📤 Registrar baixa / transferência';
-  try {
-    const resp = await apiGet({ action: 'baixaBuscar', codigo: id });
-    if (!itemAtual || itemAtual.ID_INTERNO !== id) return; // usuário já mudou de item
-    if (resp.ok && resp.registro && resp.registro.STATUS_BAIXA === 'AGUARDANDO RETIRADA') {
-      aviso.className = 'aviso-baixa';
-      aviso.innerHTML = '⚠️ <b>Baixa solicitada — aguardando retirada.</b><br>' + resumoBaixaHtml(resp.registro);
-      aviso.style.display = 'block';
-      botao.textContent = '📤 Ver / concluir baixa deste item';
-    }
-  } catch (e) { /* silencioso: não atrapalha a conferência */ }
-}
-
-// Busca de um código que não está mais na lista ativa
-async function mostrarSeFoiBaixado(codigo) {
-  try {
-    const resp = await apiGet({ action: 'baixaBuscar', codigo: codigo });
-    if (!resp.ok || !resp.registro || resp.naListaAtiva) return false;
-    const r = resp.registro;
-    const st = document.getElementById('status-inicial');
-    st.innerHTML =
-      '<div class="aviso-baixa concluida" style="text-align:left;">' +
-      '📦 <b>' + esc(r.ID_INTERNO) + '</b> — ' + esc(r.DESCRICAO_ITEM || '') +
-      '<br>Este patrimônio <b>não está mais na unidade</b> (' + esc(r.STATUS_BAIXA) + ').<br>' +
-      resumoBaixaHtml(r) +
-      '<br><button class="btn-secondary" style="margin-top:8px;" onclick="abrirRegistroBaixa(\'' + esc(r.ID_INTERNO) + '\')">Abrir registro de baixa</button>' +
-      '</div>';
-    return true;
-  } catch (e) {
-    return false;
+  const b = await baixaAtivaDe(pat);
+  if (!itemAtual || itemAtual.pat !== pat) return;
+  if (b.ativa && b.ativa.status === 'AGUARDANDO RETIRADA') {
+    aviso.className = 'aviso-baixa';
+    aviso.innerHTML = '⚠️ <b>Baixa solicitada — aguardando retirada.</b><br>' + resumoBaixaHtml(b.ativa);
+    aviso.style.display = 'block';
+    botao.textContent = '📤 Ver / concluir baixa deste item';
   }
 }
-
-// ---------- Abrir o formulário ----------
-function abrirBaixaDaFicha() {
+async function mostrarSeFoiBaixado(pat, bruto) {
+  const r = await sb.from('baixas').select('*')
+    .or('pat.eq."' + pat + '",codigo_prefeitura.eq."' + bruto + '"').order('registrado_em', { ascending: false }).limit(1);
+  if (r.error || !r.data.length) return false;
+  const b = r.data[0];
+  $('status-inicial').innerHTML = '<div class="aviso-baixa concluida">📦 <b>' + esc(b.pat) + '</b> — ' + esc(b.descricao || '') +
+    '<br>Este patrimônio <b>não está mais na unidade</b> (' + esc(b.status) + ').<br>' + resumoBaixaHtml(b) +
+    '<br><button class="btn-secondary" style="margin-top:8px;" onclick="abrirRegistroBaixa(\'' + esc(b.id) + '\')">Abrir registro de baixa</button></div>';
+  return true;
+}
+async function abrirBaixaDaFicha() {
   if (!itemAtual) return;
-  const base = {
-    ID_INTERNO: itemAtual.ID_INTERNO,
-    DESCRICAO_ITEM: itemAtual.DESCRICAO_ITEM || '',
-    ULTIMA_SALA: itemAtual.LOCAL_ATUAL || ''
-  };
-  document.getElementById('tela-ficha').style.display = 'none';
+  const base = { pat: itemAtual.pat, descricao: itemAtual.descricao, ultima_sala: itemAtual.local_atual };
   prepararFormBaixa(base, null);
-  // Se já existe solicitação em aberto, carrega os dados dela
-  apiGet({ action: 'baixaBuscar', codigo: base.ID_INTERNO }).then(function (resp) {
-    if (resp.ok && resp.registro && resp.registro.STATUS_BAIXA === 'AGUARDANDO RETIRADA' &&
-        baixaAtual && baixaAtual.ID_INTERNO === base.ID_INTERNO) {
-      prepararFormBaixa(base, resp.registro);
-    }
-  }).catch(function () {});
+  const b = await baixaAtivaDe(itemAtual.pat);
+  if (b.ativa && baixaAtual && baixaAtual.pat === base.pat) prepararFormBaixa(base, b.ativa);
 }
-
 async function abrirRegistroBaixa(id) {
-  document.getElementById('tela-inicial').style.display = 'none';
-  document.getElementById('tela-baixas').style.display = 'none';
-  document.getElementById('status-inicial').innerHTML = '';
-  prepararFormBaixa({ ID_INTERNO: id, DESCRICAO_ITEM: 'carregando...', ULTIMA_SALA: '' }, null);
-  try {
-    const resp = await apiGet({ action: 'baixaBuscar', codigo: id });
-    if (!resp.ok) throw new Error(resp.erro);
-    const r = resp.registro;
-    prepararFormBaixa({ ID_INTERNO: r.ID_INTERNO, DESCRICAO_ITEM: r.DESCRICAO_ITEM, ULTIMA_SALA: r.ULTIMA_SALA }, r);
-  } catch (err) {
-    document.getElementById('status-baixa').innerHTML = '<span class="status-msg erro">Erro: ' + esc(err.message) + '</span>';
-  }
+  $('status-inicial').innerHTML = '';
+  const r = await sb.from('baixas').select('*').eq('id', id).single();
+  if (r.error) { alert(erroTexto(r.error)); return; }
+  prepararFormBaixa({ pat: r.data.pat, descricao: r.data.descricao, ultima_sala: r.data.ultima_sala }, r.data);
 }
-
 function prepararFormBaixa(base, reg) {
-  baixaAtual = Object.assign({}, base, { registro: reg });
+  baixaAtual = { pat: base.pat, descricao: base.descricao, ultima_sala: base.ultima_sala, registro: reg };
   const r = reg || {};
-  document.getElementById('tela-baixa').style.display = 'block';
-  document.getElementById('status-baixa').innerHTML = '';
-  document.getElementById('bx-id').textContent = base.ID_INTERNO;
-  document.getElementById('bx-desc').textContent = base.DESCRICAO_ITEM || '—';
-  document.getElementById('bx-sala').textContent = base.ULTIMA_SALA || '—';
-  document.getElementById('bx-status').textContent = r.STATUS_BAIXA || 'NOVO';
-
-  document.getElementById('bx-tipo').value = r.TIPO_BAIXA || '';
-  document.getElementById('bx-data-sol').value = dataParaISO(r.DATA_SOLICITACAO) || hojeISO();
-  document.getElementById('bx-solicitante').value = r.SOLICITANTE || '';
-  document.getElementById('bx-motivo').value = r.MOTIVO || '';
-  document.getElementById('bx-destino').value = r.DESTINO || '';
-  document.getElementById('bx-data-ret').value = dataParaISO(r.DATA_RETIRADA) || '';
-  document.getElementById('bx-retirado-por').value = r.RETIRADO_POR || '';
-  document.getElementById('bx-matricula').value = r.MATRICULA_RETIRADA || '';
-  document.getElementById('bx-num-termo').value = r.NUM_TERMO_PROCESSO || '';
-  document.getElementById('bx-sistema').value = r.BAIXA_SISTEMA_PREFEITURA || '';
-  document.getElementById('bx-obs').value = r.OBS_BAIXA || '';
-  document.getElementById('bx-termo').value = '';
-  document.getElementById('bx-foto-ret').value = '';
-
-  const concluida = r.STATUS_BAIXA === 'CONCLUÍDA';
-  const encerrada = r.STATUS_BAIXA === 'CANCELADA' || r.STATUS_BAIXA === 'DESFEITA (ITEM VOLTOU)';
-  const chk = document.getElementById('bx-concluir');
-  chk.checked = concluida;
-  chk.disabled = concluida || encerrada;
-
-  document.getElementById('bx-termo-atual').innerHTML = r.TERMO_LINK
-    ? '<a class="anexo-link" href="' + esc(r.TERMO_LINK) + '" target="_blank">📎 Ver termo anexado</a> <span style="font-size:11px;color:#999">(anexar outro substitui o link)</span>'
-    : '';
-  document.getElementById('bx-foto-atual').innerHTML = r.FOTO_RETIRADA_LINK
-    ? '<img class="foto-preview" src="' + esc(r.FOTO_RETIRADA_LINK) + '">'
-    : '';
-
-  document.getElementById('bx-btn-pdf').style.display = reg ? 'block' : 'none';
-  document.getElementById('bx-btn-cancelar').style.display = r.STATUS_BAIXA === 'AGUARDANDO RETIRADA' ? 'block' : 'none';
-  document.getElementById('bx-btn-desfazer').style.display = concluida ? 'block' : 'none';
+  mostrar('tela-baixa');
+  $('status-baixa').innerHTML = '';
+  $('bx-id').textContent = base.pat;
+  $('bx-desc').textContent = base.descricao || '—';
+  $('bx-sala').textContent = base.ultima_sala || '—';
+  $('bx-status').textContent = r.status || 'NOVO';
+  $('bx-tipo').value = r.tipo || '';
+  $('bx-data-sol').value = r.data_solicitacao || hojeISO();
+  $('bx-solicitante').value = r.solicitante || '';
+  $('bx-motivo').value = r.motivo || '';
+  $('bx-destino').value = r.destino || '';
+  $('bx-data-ret').value = r.data_retirada || '';
+  $('bx-retirado-por').value = r.retirado_por || '';
+  $('bx-matricula').value = r.matricula_retirada || '';
+  $('bx-num-termo').value = r.num_termo_processo || '';
+  $('bx-sistema').value = r.baixa_sistema_prefeitura || '';
+  $('bx-obs').value = r.obs || '';
+  $('bx-termo').value = ''; $('bx-foto-ret').value = '';
+  const concluida = r.status === 'CONCLUÍDA';
+  const encerrada = r.status === 'CANCELADA' || r.status === 'DESFEITA (ITEM VOLTOU)';
+  $('bx-concluir').checked = concluida;
+  $('bx-concluir').disabled = concluida || encerrada;
+  $('bx-termo-atual').innerHTML = r.termo_path
+    ? '<span class="anexo-link" onclick="abrirAnexo(\'' + esc(r.termo_path) + '\')">📎 Ver termo anexado</span> <span style="font-size:11px;color:#999">(anexar outro substitui)</span>' : '';
+  $('bx-foto-atual').innerHTML = '';
+  if (r.foto_retirada_path) urlAssinada(r.foto_retirada_path).then(function (u) {
+    if (u) $('bx-foto-atual').innerHTML = '<img class="foto-preview" src="' + esc(u) + '">';
+  });
+  $('bx-btn-pdf').style.display = reg ? 'block' : 'none';
+  $('bx-btn-cancelar').style.display = r.status === 'AGUARDANDO RETIRADA' ? 'block' : 'none';
+  $('bx-btn-desfazer').style.display = concluida ? 'block' : 'none';
   ajustarCamposBaixa();
 }
-
-function ajustarCamposBaixa() {
-  const tipo = document.getElementById('bx-tipo').value;
-  const mostraDestino = /TRANSFER|DEVOLU|OUTRO/.test(tipo);
-  document.getElementById('bx-bloco-destino').style.display = mostraDestino ? 'block' : 'none';
-  const concluir = document.getElementById('bx-concluir').checked;
-  document.getElementById('bx-bloco-retirada').style.display = concluir ? 'block' : 'none';
-  if (concluir && !document.getElementById('bx-data-ret').value) {
-    document.getElementById('bx-data-ret').value = hojeISO();
-  }
+async function abrirAnexo(caminho) {
+  const w = window.open('', '_blank');
+  const u = await urlAssinada(caminho);
+  if (u && w) w.location = u; else if (w) w.close();
 }
-
-// ---------- Salvar ----------
+function ajustarCamposBaixa() {
+  $('bx-bloco-destino').style.display = /TRANSFER|DEVOLU|OUTRO/.test($('bx-tipo').value) ? 'block' : 'none';
+  const c = $('bx-concluir').checked;
+  $('bx-bloco-retirada').style.display = c ? 'block' : 'none';
+  if (c && !$('bx-data-ret').value) $('bx-data-ret').value = hojeISO();
+}
 async function salvarBaixa() {
   if (!baixaAtual) return;
-  const st = document.getElementById('status-baixa');
-  const tipo = document.getElementById('bx-tipo').value;
-  const motivo = document.getElementById('bx-motivo').value.trim();
-  const concluir = document.getElementById('bx-concluir').checked &&
-                   !document.getElementById('bx-concluir').disabled;
-  if (!tipo) { st.innerHTML = '<span class="status-msg erro">Escolha o tipo.</span>'; return; }
-  if (!motivo) { st.innerHTML = '<span class="status-msg erro">Descreva o motivo.</span>'; return; }
+  const tipo = $('bx-tipo').value, motivo = $('bx-motivo').value.trim();
+  const jaConcluida = baixaAtual.registro && baixaAtual.registro.status === 'CONCLUÍDA';
+  const concluir = $('bx-concluir').checked && !$('bx-concluir').disabled;
+  if (!tipo) { msg('status-baixa', 'Escolha o tipo.', 'erro'); return; }
+  if (!motivo) { msg('status-baixa', 'Descreva o motivo.', 'erro'); return; }
   if (concluir) {
-    if (!document.getElementById('bx-data-ret').value || !document.getElementById('bx-retirado-por').value.trim()) {
-      st.innerHTML = '<span class="status-msg erro">Para concluir, informe a data da retirada e quem retirou.</span>';
-      return;
+    if (!$('bx-data-ret').value || !$('bx-retirado-por').value.trim()) {
+      msg('status-baixa', 'Para concluir, informe a data da retirada e quem retirou.', 'erro'); return;
     }
-    if (!confirm('Confirmar que ' + baixaAtual.ID_INTERNO + ' JÁ SAIU da unidade?\n\nEle sairá da lista ativa e ficará guardado na aba BAIXAS.')) return;
+    if (!confirm('Confirmar que ' + baixaAtual.pat + ' JÁ SAIU da unidade?\n\nEle sairá da lista ativa e o código ficará bloqueado para sempre.')) return;
   }
-
-  const payload = {
-    ID_INTERNO: baixaAtual.ID_INTERNO,
-    TIPO_BAIXA: tipo,
-    DATA_SOLICITACAO: dataParaBR(document.getElementById('bx-data-sol').value),
-    SOLICITANTE: document.getElementById('bx-solicitante').value.trim(),
-    MOTIVO: motivo,
-    DESTINO: document.getElementById('bx-bloco-destino').style.display === 'none' ? '' : document.getElementById('bx-destino').value.trim(),
-    DATA_RETIRADA: dataParaBR(document.getElementById('bx-data-ret').value),
-    RETIRADO_POR: document.getElementById('bx-retirado-por').value.trim(),
-    MATRICULA_RETIRADA: document.getElementById('bx-matricula').value.trim(),
-    NUM_TERMO_PROCESSO: document.getElementById('bx-num-termo').value.trim(),
-    BAIXA_SISTEMA_PREFEITURA: document.getElementById('bx-sistema').value,
-    OBS_BAIXA: document.getElementById('bx-obs').value.trim(),
-    CONCLUIR: concluir
+  const p = {
+    pat: baixaAtual.pat, tipo: tipo, motivo: motivo,
+    data_solicitacao: $('bx-data-sol').value, solicitante: $('bx-solicitante').value.trim(),
+    destino: $('bx-bloco-destino').style.display === 'none' ? '' : $('bx-destino').value.trim(),
+    num_termo_processo: $('bx-num-termo').value.trim(), baixa_sistema_prefeitura: $('bx-sistema').value,
+    obs: $('bx-obs').value.trim(), concluir: concluir
   };
-  // Se não está concluindo agora, não grava retirada pela metade
-  if (!concluir && !(baixaAtual.registro && baixaAtual.registro.STATUS_BAIXA === 'CONCLUÍDA')) {
-    payload.DATA_RETIRADA = ''; payload.RETIRADO_POR = ''; payload.MATRICULA_RETIRADA = '';
+  if (concluir || jaConcluida) {
+    p.data_retirada = $('bx-data-ret').value; p.retirado_por = $('bx-retirado-por').value.trim();
+    p.matricula_retirada = $('bx-matricula').value.trim();
   }
-
-  st.innerHTML = 'Salvando... (anexos podem demorar alguns segundos)';
+  msg('status-baixa', 'Salvando... (anexos podem demorar alguns segundos)');
   try {
-    payload.termo = await lerArquivoBase64(document.getElementById('bx-termo'));
-    payload.fotoRetirada = await lerArquivoBase64(document.getElementById('bx-foto-ret'));
-    const resp = await apiPost('baixaRegistrar', payload);
-    if (!resp.ok) throw new Error(resp.erro || 'Falha ao salvar.');
-    const r = resp.registro;
-    prepararFormBaixa({ ID_INTERNO: r.ID_INTERNO, DESCRICAO_ITEM: r.DESCRICAO_ITEM, ULTIMA_SALA: r.ULTIMA_SALA }, r);
-    document.getElementById('status-baixa').innerHTML = '<span class="status-msg ok">✅ ' +
-      (resp.removidoDaLista
-        ? 'Baixa concluída! O item saiu da lista ativa e está guardado na aba BAIXAS.'
-        : (resp.novo ? 'Solicitação registrada. O item continua na lista até ser retirado.' : 'Registro atualizado.')) +
-      '</span>';
-    if (resp.removidoDaLista) atualizarMiniProgresso();
-  } catch (err) {
-    st.innerHTML = '<span class="status-msg erro">Erro: ' + esc(err.message) + '</span>';
+    const termo = $('bx-termo').files[0], foto = $('bx-foto-ret').files[0];
+    if (termo) p.termo_path = await enviarArquivo('baixas', baixaAtual.pat + '_TERMO', termo);
+    if (foto) p.foto_retirada_path = await enviarArquivo('baixas', baixaAtual.pat + '_RETIRADA', foto);
+    const r = await sb.rpc('registrar_baixa', { p: p });
+    if (r.error) throw r.error;
+    const reg = r.data.registro;
+    prepararFormBaixa({ pat: reg.pat, descricao: reg.descricao, ultima_sala: reg.ultima_sala }, reg);
+    msg('status-baixa', '✅ ' + (r.data.removidoDaLista ? 'Baixa concluída! O item saiu da lista ativa.'
+      : r.data.novo ? 'Solicitação registrada. O item continua na lista até ser retirado.' : 'Registro atualizado.'), 'ok');
+    if (r.data.removidoDaLista) carregarItens().catch(function () {});
+  } catch (e) {
+    msg('status-baixa', 'Erro: ' + esc(erroTexto(e)), 'erro');
   }
 }
-
 async function cancelarBaixa() {
-  if (!baixaAtual) return;
-  const motivo = prompt('Cancelar a solicitação de baixa de ' + baixaAtual.ID_INTERNO + '?\nO item continua na unidade.\n\nMotivo do cancelamento (opcional):', '');
-  if (motivo === null) return;
-  const st = document.getElementById('status-baixa');
-  st.innerHTML = 'Cancelando...';
-  try {
-    const resp = await apiPost('baixaCancelar', { ID_INTERNO: baixaAtual.ID_INTERNO, motivo: motivo });
-    if (!resp.ok) throw new Error(resp.erro);
-    st.innerHTML = '<span class="status-msg ok">✅ Solicitação cancelada. O item continua na lista ativa.</span>';
-    setTimeout(voltarInicio, 1800);
-  } catch (err) {
-    st.innerHTML = '<span class="status-msg erro">Erro: ' + esc(err.message) + '</span>';
-  }
+  const m = prompt('Cancelar a solicitação de baixa de ' + baixaAtual.pat + '? O item continua na unidade.\n\nMotivo (opcional):', '');
+  if (m === null) return;
+  const r = await sb.rpc('cancelar_baixa', { p_pat: baixaAtual.pat, p_motivo: m });
+  if (r.error) { msg('status-baixa', esc(erroTexto(r.error)), 'erro'); return; }
+  msg('status-baixa', '✅ Solicitação cancelada. O item continua na lista ativa.', 'ok');
+  setTimeout(voltarInicio, 1600);
 }
-
 async function desfazerBaixa() {
-  if (!baixaAtual) return;
-  const motivo = prompt('Desfazer a baixa de ' + baixaAtual.ID_INTERNO + '?\nO item VOLTA para a lista ativa, com os dados que tinha antes.\n\nMotivo (ex: transferência não aconteceu):', '');
-  if (motivo === null) return;
-  const st = document.getElementById('status-baixa');
-  st.innerHTML = 'Devolvendo o item à lista ativa...';
-  try {
-    const resp = await apiPost('baixaDesfazer', { ID_INTERNO: baixaAtual.ID_INTERNO, motivo: motivo });
-    if (!resp.ok) throw new Error(resp.erro);
-    st.innerHTML = '<span class="status-msg ok">✅ ' + esc(resp.msg || 'Baixa desfeita.') + '</span>';
-    atualizarMiniProgresso();
-    setTimeout(voltarInicio, 2200);
-  } catch (err) {
-    st.innerHTML = '<span class="status-msg erro">Erro: ' + esc(err.message) + '</span>';
-  }
+  const m = prompt('Desfazer a baixa de ' + baixaAtual.pat + '? O item VOLTA para a lista ativa.\n\nMotivo:', '');
+  if (m === null) return;
+  const r = await sb.rpc('desfazer_baixa', { p_pat: baixaAtual.pat, p_motivo: m });
+  if (r.error) { msg('status-baixa', esc(erroTexto(r.error)), 'erro'); return; }
+  msg('status-baixa', '✅ ' + esc(r.data), 'ok');
+  carregarItens().catch(function () {});
+  setTimeout(voltarInicio, 2000);
 }
-
 async function gerarComprovanteBaixa() {
-  if (!baixaAtual) return;
-  const st = document.getElementById('status-baixa');
-  st.innerHTML = 'Gerando o comprovante em PDF...';
-  try {
-    const resp = await apiPost('baixaRelatorio', { ID_INTERNO: baixaAtual.ID_INTERNO });
-    if (!resp.ok) throw new Error(resp.erro || 'Falha ao gerar PDF.');
-    st.innerHTML = '<a href="' + esc(resp.url) + '" target="_blank" style="color:var(--azul);font-weight:bold;">✅ Comprovante pronto — toque aqui para abrir</a>';
-  } catch (err) {
-    st.innerHTML = '<span class="status-msg erro">Erro: ' + esc(err.message) + '</span>';
+  if (!baixaAtual || !baixaAtual.registro) return;
+  const w = abrirJanela('Baixa ' + baixaAtual.pat, CSS_DOC);
+  if (!w) return;
+  const r = (await sb.from('baixas').select('*').eq('id', baixaAtual.registro.id).single()).data || baixaAtual.registro;
+  const fotoItem = await urlAssinada(r.foto_item_path), fotoRet = await urlAssinada(r.foto_retirada_path);
+  const linhas = [
+    ['Patrimônio (PAT)', r.pat], ['Código da prefeitura', r.codigo_prefeitura || '—'], ['Descrição', r.descricao || '—'],
+    ['Última sala', r.ultima_sala || '—'], ['Tipo', r.tipo], ['Situação do registro', r.status],
+    ['Data da solicitação', dataBR(r.data_solicitacao) || '—'], ['Solicitado por', r.solicitante || '—'], ['Motivo', r.motivo],
+    ['Destino', r.destino || '—'], ['Data da retirada', dataBR(r.data_retirada) || '—'],
+    ['Retirado por', (r.retirado_por || '—') + (r.matricula_retirada ? ' (matrícula ' + r.matricula_retirada + ')' : '')],
+    ['Nº do termo / processo', r.num_termo_processo || '—'], ['Termo anexado', r.termo_path ? 'Sim (arquivo digital no sistema)' : 'Não'],
+    ['Baixa no sistema da prefeitura', r.baixa_sistema_prefeitura || '—'], ['Observações', r.obs || '—']
+  ];
+  let h = cabecalhoDoc() + '<h1>Registro de Baixa / Transferência de Patrimônio</h1>' +
+    '<div class="sub">Emitido em ' + dataHoraBR(new Date()) + ' por ' + esc(perfil.nome) + '</div>' +
+    '<table class="kv">' + linhas.map(function (l) { return '<tr><td>' + esc(l[0]) + '</td><td>' + esc(l[1]) + '</td></tr>'; }).join('') + '</table>';
+  if (fotoItem || fotoRet) {
+    h += '<h2>Fotos</h2><div class="galeria">' +
+      (fotoItem ? '<div><img src="' + esc(fotoItem) + '" style="height:180px"><br>Foto do item</div>' : '') +
+      (fotoRet ? '<div><img src="' + esc(fotoRet) + '" style="height:180px"><br>Foto da retirada</div>' : '') + '</div>';
   }
+  h += '<div class="ass"><div>Responsável pela unidade<br>Nome / Matrícula</div><div>Quem retirou o patrimônio<br>' +
+    esc(r.retirado_por || 'Nome / Matrícula') + '</div></div><div class="rod">Desenvolvido por antonioresolve.com</div>';
+  const c = w.document.getElementById('conteudo');
+  c.style.padding = '0'; c.innerHTML = h;
+  imprimirQuandoPronto(w);
 }
-
-// ---------- Lista de baixas ----------
-function abrirListaBaixas() {
-  document.getElementById('tela-inicial').style.display = 'none';
-  document.getElementById('tela-baixas').style.display = 'block';
-  carregarListaBaixas();
-}
-
+async function abrirListaBaixas() { mostrar('tela-baixas'); carregarListaBaixas(); }
 async function carregarListaBaixas() {
-  const div = document.getElementById('lista-baixas');
+  const div = $('lista-baixas');
   div.innerHTML = '<div class="status-msg">Carregando...</div>';
+  let q = sb.from('baixas').select('*').order('registrado_em', { ascending: false });
+  const f = $('filtro-baixas').value;
+  if (f) q = q.eq('status', f);
+  const r = await q;
+  if (r.error) { div.innerHTML = '<div class="status-msg erro">' + esc(erroTexto(r.error)) + '</div>'; return; }
+  if (!r.data.length) { div.innerHTML = '<div class="status-msg">Nenhum registro aqui.</div>'; return; }
+  div.innerHTML = '';
+  r.data.forEach(function (b) {
+    const row = document.createElement('div');
+    row.className = 'item-lista';
+    row.innerHTML = '<span class="nome">' + esc(b.descricao) + ' <span style="color:#999">(' + esc(b.pat) + ')</span><br>' +
+      '<span style="font-size:11px;color:var(--cinza)">' + esc(b.tipo) + (b.destino ? ' → ' + esc(b.destino) : '') + ' · ' +
+      esc(dataBR(b.data_retirada || b.data_solicitacao)) + '</span></span>' + tagStatusBaixa(b.status);
+    row.onclick = function () { prepararFormBaixa({ pat: b.pat, descricao: b.descricao, ultima_sala: b.ultima_sala }, b); };
+    div.appendChild(row);
+  });
+}
+
+// ===================================================================
+// DUPLICADOS E UNIFICAÇÃO (só administradores)
+// ===================================================================
+let unifA = null, unifB = null, unifManter = 'A';
+
+function semZeros(c) { return String(c || '').trim().replace(/^0+/, ''); }
+function normDesc(d) {
+  return String(d || '').toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^A-Z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+}
+// Quanto mais campos preenchidos, mais "completo" é o item
+function pontuacao(i) {
+  let p = 0;
+  if (i.codigo_prefeitura) p += 3;
+  if (i.foto_path) p += 2;
+  if (i.situacao) p++;
+  if (i.observacoes) p++;
+  if (i.data_aquisicao_idade) p++;
+  if (i.valor_aquisicao) p++;
+  if (i.conferido_nesta_rodada) p++;
+  p += Math.min(3, Math.floor(String(i.descricao || '').length / 15));
+  return p;
+}
+
+async function abrirDuplicados() {
+  mostrar('tela-duplicados');
+  const div = $('lista-duplicados');
+  div.innerHTML = '<div class="status-msg">Procurando...</div>';
+  try { await carregarItens(); } catch (e) {}
+  const porCod = {}, porDesc = {};
+  cacheItens.forEach(function (i) {
+    const c = semZeros(i.codigo_prefeitura);
+    if (c) (porCod[c] = porCod[c] || []).push(i);
+    const d = normDesc(i.descricao) + '|' + String(i.local_atual || '').trim();
+    (porDesc[d] = porDesc[d] || []).push(i);
+  });
+  const gruposCod = Object.values(porCod).filter(function (g) { return g.length > 1; });
+  const jaListados = {};
+  gruposCod.forEach(function (g) { g.forEach(function (i) { jaListados[i.pat] = true; }); });
+  const gruposDesc = Object.values(porDesc).filter(function (g) {
+    return g.length > 1 && !g.every(function (i) { return jaListados[i.pat]; });
+  }).sort(function (a, b) { return String(a[0].local_atual).localeCompare(String(b[0].local_atual), 'pt-BR'); });
+
+  let h = '';
+  h += '<h2 class="tit" style="font-size:14px;">1) Mesmo código da prefeitura (' + gruposCod.length + ') — quase certo</h2>';
+  h += gruposCod.length ? gruposCod.map(function (g, k) { return htmlGrupo(g, 'c' + k); }).join('')
+    : '<div class="info-linha">Nenhum caso. ✅</div>';
+  h += '<h2 class="tit" style="font-size:14px;margin-top:18px;">2) Mesma descrição na mesma sala (' + gruposDesc.length + ') — conferir</h2>';
+  h += gruposDesc.length ? gruposDesc.map(function (g, k) { return htmlGrupo(g, 'd' + k); }).join('')
+    : '<div class="info-linha">Nenhum caso. ✅</div>';
+  div.innerHTML = h;
+}
+function htmlGrupo(g, id) {
+  const marcar = g.length === 2;
+  return '<div class="pessoa" id="grp-' + id + '">' +
+    g.map(function (i) {
+      return '<label style="display:flex;gap:8px;align-items:flex-start;font-weight:normal;color:#222;font-size:13px;margin:4px 0;">' +
+        '<input type="checkbox" style="width:auto;margin-top:3px;" value="' + esc(i.pat) + '"' + (marcar ? ' checked' : '') + '>' +
+        '<span><b>' + esc(i.pat) + '</b> — ' + esc(i.descricao) + '<br><span style="color:var(--cinza);font-size:11px;">' +
+        esc(i.local_atual || '—') + (i.codigo_prefeitura ? ' · Pref. ' + esc(i.codigo_prefeitura) : ' · sem cód. prefeitura') +
+        (i.foto_path ? ' · 📷' : '') + '</span></span></label>';
+    }).join('') +
+    '<button class="btn-secondary" style="padding:8px;font-size:13px;" onclick="compararGrupo(\'' + id + '\')">Comparar os 2 marcados</button></div>';
+}
+function compararGrupo(id) {
+  const marcados = Array.from(document.querySelectorAll('#grp-' + id + ' input:checked')).map(function (c) { return c.value; });
+  if (marcados.length !== 2) { alert('Marque exatamente 2 itens para comparar.'); return; }
+  abrirComparacao(marcados[0], marcados[1]);
+}
+
+function unificarDaFicha() {
+  if (!itemAtual) return;
+  unifA = itemAtual; unifB = null;
+  mostrar('tela-unificar');
+  $('unif-escolha').style.display = 'block';
+  $('unif-outro').value = '';
+  $('unif-comparacao').innerHTML = '<div class="info-linha">Item atual: <b>' + esc(unifA.pat) + '</b> — ' + esc(unifA.descricao) +
+    '<br>Agora bipe ou digite a <b>outra etiqueta</b> do mesmo bem.</div>';
+  $('unif-acoes').style.display = 'none';
+  $('status-unificar').innerHTML = '';
+  setTimeout(function () { $('unif-outro').focus(); }, 200);
+}
+$('unif-outro').addEventListener('keydown', function (e) {
+  if (e.key === 'Enter' || e.keyCode === 13) { e.preventDefault(); compararComOutro(); }
+});
+async function compararComOutro() {
+  const bruto = $('unif-outro').value.trim();
+  if (!bruto || !unifA) return;
+  const pat = normPat(bruto);
+  const r = await sb.from('itens').select('pat').or('pat.eq."' + pat + '",codigo_prefeitura.eq."' + bruto + '"').neq('pat', unifA.pat).limit(1);
+  if (r.error || !r.data.length) { msg('status-unificar', 'Não encontrei outro item ativo com "' + esc(bruto) + '".', 'erro'); return; }
+  abrirComparacao(unifA.pat, r.data[0].pat);
+}
+
+async function abrirComparacao(patA, patB) {
+  mostrar('tela-unificar');
+  $('unif-escolha').style.display = 'none';
+  $('unif-acoes').style.display = 'none';
+  $('status-unificar').innerHTML = '';
+  $('unif-comparacao').innerHTML = '<div class="status-msg">Carregando...</div>';
+  const r = await sb.from('itens').select('*').in('pat', [patA, patB]);
+  if (r.error || r.data.length !== 2) { $('unif-comparacao').innerHTML = '<div class="status-msg erro">Não foi possível carregar os dois itens.</div>'; return; }
+  unifA = r.data.find(function (i) { return i.pat === patA; });
+  unifB = r.data.find(function (i) { return i.pat === patB; });
+  unifManter = pontuacao(unifB) > pontuacao(unifA) ? 'B' : 'A';
+  const fotos = await Promise.all([urlAssinada(unifA.foto_path), urlAssinada(unifB.foto_path)]);
+  const linhas = [
+    ['Código', 'pat'], ['Cód. prefeitura', 'codigo_prefeitura'], ['Descrição', 'descricao'], ['Sala', 'local_atual'],
+    ['Situação', 'situacao'], ['Observações', 'observacoes'], ['Aquisição / idade', 'data_aquisicao_idade'],
+    ['Valor', 'valor_aquisicao'], ['Última conferência', 'data_ultima_conferencia']
+  ];
+  const cel = function (i, c) {
+    const v = c === 'data_ultima_conferencia' ? dataHoraBR(i[c]) : i[c];
+    return v ? esc(v) : '<span style="color:#bbb">—</span>';
+  };
+  let h = '<table style="width:100%;border-collapse:collapse;font-size:12px;">' +
+    '<tr><td></td>' + ['A', 'B'].map(function (k) {
+      return '<td style="padding:4px;text-align:center;"><label style="margin:0;font-size:12px;color:#222;display:flex;gap:4px;justify-content:center;">' +
+        '<input type="radio" name="unif-manter" value="' + k + '" style="width:auto;"' + (unifManter === k ? ' checked' : '') +
+        ' onchange="unifManter=this.value;resumoUnificacao()"> Manter este</label></td>';
+    }).join('') + '</tr>';
+  h += '<tr><td style="padding:4px;color:var(--cinza);">Foto</td>' + fotos.map(function (u) {
+    return '<td style="padding:4px;text-align:center;">' + (u ? '<img src="' + esc(u) + '" style="width:100%;max-height:110px;object-fit:contain;background:#f4f4f4;border-radius:6px;">' : '<span style="color:#bbb">sem foto</span>') + '</td>';
+  }).join('') + '</tr>';
+  linhas.forEach(function (l) {
+    h += '<tr style="border-top:1px solid #eee;"><td style="padding:4px;color:var(--cinza);width:28%;">' + l[0] + '</td>' +
+      '<td style="padding:4px;width:36%;">' + cel(unifA, l[1]) + '</td><td style="padding:4px;width:36%;">' + cel(unifB, l[1]) + '</td></tr>';
+  });
+  h += '</table><div id="unif-resumo" class="aviso-baixa" style="margin-top:10px;"></div>';
+  $('unif-comparacao').innerHTML = h;
+  $('unif-liberar').checked = false;
+  $('unif-motivo').value = '';
+  $('unif-acoes').style.display = 'block';
+  resumoUnificacao();
+}
+function resumoUnificacao() {
+  const m = unifManter === 'A' ? unifA : unifB, s = unifManter === 'A' ? unifB : unifA;
+  let aviso = '';
+  if (m.codigo_prefeitura && s.codigo_prefeitura && semZeros(m.codigo_prefeitura) !== semZeros(s.codigo_prefeitura)) {
+    aviso = '<br>⚠️ <b>Os códigos da prefeitura são diferentes</b> (' + esc(m.codigo_prefeitura) + ' × ' + esc(s.codigo_prefeitura) +
+      '). Tem certeza de que é o mesmo bem? O código do que sai fica anotado nas observações.';
+  }
+  $('unif-resumo').innerHTML = 'Fica <b>' + esc(m.pat) + '</b>. Sai <b>' + esc(s.pat) + '</b>.<br>' +
+    'Os campos vazios de ' + esc(m.pat) + ' serão completados com os de ' + esc(s.pat) +
+    ' (código da prefeitura, foto, situação...). As observações são somadas.' + aviso;
+}
+async function confirmarUnificacao() {
+  const m = unifManter === 'A' ? unifA : unifB, s = unifManter === 'A' ? unifB : unifA;
+  if (!confirm('Unificar?\n\nFICA: ' + m.pat + ' — ' + m.descricao + '\nSAI: ' + s.pat + ' — ' + s.descricao +
+    '\n\nEssa ação fica registrada no histórico.')) return;
+  msg('status-unificar', 'Unificando...');
+  const r = await sb.rpc('unificar_itens', {
+    p_manter: m.pat, p_remover: s.pat, p_liberar_codigo: $('unif-liberar').checked, p_motivo: $('unif-motivo').value.trim()
+  });
+  if (r.error) { msg('status-unificar', 'Erro: ' + esc(erroTexto(r.error)), 'erro'); return; }
+  $('unif-acoes').style.display = 'none';
+  msg('status-unificar', '✅ Unificado! Ficou ' + esc(r.data.mantido) + '. ' +
+    (r.data.codigo_liberado ? 'O código ' + esc(r.data.removido) + ' foi liberado para reaproveitar.'
+      : 'O código ' + esc(r.data.removido) + ' ficou bloqueado; quem bipar a etiqueta antiga cai em ' + esc(r.data.mantido) + '.'), 'ok');
+  carregarItens().catch(function () {});
+}
+
+// Quem bipar a etiqueta de um item que foi unificado é levado ao item que ficou
+async function mostrarSeFoiUnificado(pat, bruto) {
+  const r = await sb.from('unificacoes').select('*')
+    .or('pat_removido.eq."' + pat + '",codigo_prefeitura_removido.eq."' + bruto + '"').order('criado_em', { ascending: false }).limit(1);
+  if (r.error || !r.data.length) return false;
+  const u = r.data[0];
+  $('status-inicial').innerHTML = '<div class="aviso-baixa">🔗 <b>' + esc(u.pat_removido) + '</b> era duplicado e foi unificado com <b>' +
+    esc(u.pat_mantido) + '</b> em ' + esc(dataBR(u.criado_em)) + ' por ' + esc(u.usuario_nome || '—') + '.' +
+    '<br>Se esta etiqueta ainda está colada no bem, troque pela etiqueta de ' + esc(u.pat_mantido) + '.' +
+    '<br><button class="btn-secondary" style="margin-top:8px;" onclick="buscar(\'' + esc(u.pat_mantido) + '\')">Abrir ' + esc(u.pat_mantido) + '</button></div>';
+  return true;
+}
+
+// ===================================================================
+// MANUTENÇÃO: reduzir fotos pesadas (só administradores)
+// ===================================================================
+let reduzindo = false;
+async function reduzirFotosAntigas() {
+  if (reduzindo) return;
+  const st = $('status-fotos');
+  const LIMITE = 700 * 1024; // acima disso, a foto é reduzida
+  reduzindo = true;
   try {
-    const resp = await apiGet({ action: 'baixasListar', status: document.getElementById('filtro-baixas').value });
-    if (!resp.ok) throw new Error(resp.erro);
-    if (!resp.baixas.length) { div.innerHTML = '<div class="status-msg">Nenhum registro aqui ainda.</div>'; return; }
-    div.innerHTML = '';
-    resp.baixas.forEach(function (r) {
-      const row = document.createElement('div');
-      row.className = 'item-lista';
-      row.innerHTML =
-        '<span class="nome">' + esc(r.DESCRICAO_ITEM) + ' <span style="color:#999">(' + esc(r.ID_INTERNO) + ')</span>' +
-        '<br><span style="font-size:11px;color:var(--cinza)">' + esc(r.TIPO_BAIXA || '') +
-        (r.DESTINO ? ' → ' + esc(r.DESTINO) : '') + ' · ' + esc(r.DATA_RETIRADA || r.DATA_SOLICITACAO || '') + '</span></span>' +
-        tagStatusBaixa(r.STATUS_BAIXA);
-      row.onclick = function () { abrirRegistroBaixa(r.ID_INTERNO); };
-      div.appendChild(row);
-    });
-  } catch (err) {
-    div.innerHTML = '<div class="status-msg erro">Erro: ' + esc(err.message) + '</div>';
+    st.innerHTML = 'Procurando fotos pesadas...';
+    let pesadas = [];
+    for (const pasta of ['itens', 'baixas']) {
+      const r = await sb.storage.from(BUCKET).list(perfil.unidade_id + '/' + pasta, { limit: 2000 });
+      if (r.error) throw r.error;
+      r.data.forEach(function (f) {
+        const tam = f.metadata ? f.metadata.size : 0;
+        const tipo = f.metadata ? String(f.metadata.mimetype || '') : '';
+        if (tam > LIMITE && /^image\//.test(tipo)) pesadas.push({ caminho: perfil.unidade_id + '/' + pasta + '/' + f.name, tam: tam });
+      });
+    }
+    if (!pesadas.length) { st.innerHTML = '<span class="status-msg ok">✅ Nenhuma foto pesada. Tudo otimizado!</span>'; return; }
+    if (!confirm(pesadas.length + ' fotos pesadas encontradas (' + Math.round(pesadas.reduce(function (s, p) { return s + p.tam; }, 0) / 1048576) +
+      ' MB). Reduzir agora?\n\nDeixe esta tela aberta até terminar.')) { st.innerHTML = ''; return; }
+    let feitas = 0, liberado = 0, falhas = 0;
+    for (const p of pesadas) {
+      st.innerHTML = 'Reduzindo ' + (feitas + falhas + 1) + ' de ' + pesadas.length + '... (' + Math.round(liberado / 1048576) + ' MB liberados)';
+      try {
+        const d = await sb.storage.from(BUCKET).download(p.caminho);
+        if (d.error) throw d.error;
+        const menor = await comprimirImagem(d.data);
+        if (!menor || menor.size >= p.tam) { falhas++; continue; }
+        const novo = p.caminho.replace(/\.[a-z0-9]+$/i, '') + '_r.jpg';
+        const up = await sb.storage.from(BUCKET).upload(novo, menor, { contentType: 'image/jpeg', upsert: false });
+        if (up.error) throw up.error;
+        const tr = await sb.rpc('trocar_foto_otimizada', { p_antigo: p.caminho, p_novo: novo });
+        if (tr.error) throw tr.error;
+        if (tr.data > 0) {
+          await sb.storage.from(BUCKET).remove([p.caminho]);
+          feitas++; liberado += p.tam - menor.size;
+        } else {
+          await sb.storage.from(BUCKET).remove([novo]); // foto antiga sem uso: não mexe
+          falhas++;
+        }
+      } catch (e) { falhas++; }
+    }
+    st.innerHTML = '<span class="status-msg ok">✅ ' + feitas + ' fotos reduzidas · ' + Math.round(liberado / 1048576) + ' MB liberados' +
+      (falhas ? ' · ' + falhas + ' puladas' : '') + '.</span>';
+    carregarItens().catch(function () {});
+  } catch (e) {
+    st.innerHTML = '<span class="status-msg erro">Erro: ' + esc(erroTexto(e)) + '</span>';
+  } finally {
+    reduzindo = false;
   }
 }
 
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('sw.js').catch(() => {});
+// ===================================================================
+// EQUIPE (só administradores)
+// ===================================================================
+async function abrirEquipe() {
+  mostrar('tela-equipe');
+  $('status-equipe').innerHTML = '';
+  $('conv-nome').value = ''; $('conv-email').value = '';
+  const [eq, cv] = await Promise.all([sb.rpc('equipe_da_unidade'), sb.from('convites').select('*').order('nome')]);
+  const pessoas = eq.data || [];
+  const emailsComConta = {};
+  pessoas.forEach(function (p) { emailsComConta[String(p.email).toLowerCase()] = true; });
+  $('lista-equipe').innerHTML = pessoas.length ? pessoas.map(function (p) {
+    return '<div class="pessoa"><b>' + esc(p.nome) + '</b>' + (p.id === perfil.id ? ' (você)' : '') +
+      '<div class="info-linha">' + esc(p.email) + ' · ' + (p.ativo ? '✅ ativo' : '⛔ desativado') + '</div>' +
+      '<div class="linha"><input type="text" id="nome-' + p.id + '" value="' + esc(p.nome) + '">' +
+      '<select id="papel-' + p.id + '"><option value="equipe"' + (p.papel === 'equipe' ? ' selected' : '') + '>Equipe</option>' +
+      '<option value="admin"' + (p.papel === 'admin' ? ' selected' : '') + '>Administrador</option></select></div>' +
+      '<div class="linha"><button class="btn-primary" onclick="salvarPessoa(\'' + p.id + '\')">Salvar</button>' +
+      (p.id === perfil.id ? '' : '<button class="btn-secondary" onclick="alternarAtivo(\'' + p.id + '\',' + !p.ativo + ')">' +
+        (p.ativo ? 'Desativar acesso' : 'Reativar acesso') + '</button>') + '</div></div>';
+  }).join('') : '<div class="info-linha">Ninguém entrou no app ainda.</div>';
+  const pendentes = (cv.data || []).filter(function (c) { return !emailsComConta[String(c.email).toLowerCase()]; });
+  $('lista-convites').innerHTML = pendentes.length ? '<div style="font-size:13px;font-weight:600;color:var(--azul);margin-bottom:6px;">Convites aguardando o primeiro acesso</div>' +
+    pendentes.map(function (c) {
+      return '<div class="item-lista" style="cursor:default"><span class="nome">' + esc(c.nome) + '<br><span style="font-size:11px;color:var(--cinza)">' +
+        esc(c.email) + ' · ' + (c.papel === 'admin' ? 'Administrador' : 'Equipe') + '</span></span>' +
+        '<button class="btn-secondary" style="width:auto;margin:0;padding:6px 10px;font-size:12px" onclick="removerConvite(\'' + esc(c.email) + '\')">Remover</button></div>';
+    }).join('') : '';
+}
+async function convidar() {
+  const nome = $('conv-nome').value.trim(), email = $('conv-email').value.trim().toLowerCase();
+  if (!nome || !/^\S+@\S+\.\S+$/.test(email)) { msg('status-equipe', 'Preencha nome e um e-mail válido.', 'erro'); return; }
+  const r = await sb.from('convites').upsert({ email: email, nome: nome, papel: $('conv-papel').value, unidade_id: perfil.unidade_id });
+  if (r.error) { msg('status-equipe', esc(erroTexto(r.error)), 'erro'); return; }
+  await abrirEquipe();
+  msg('status-equipe', '✅ Convite criado. Avise ' + esc(nome) + ' para abrir o app e tocar em "Primeiro acesso: criar minha senha".', 'ok');
+}
+async function removerConvite(email) {
+  if (!confirm('Remover o convite de ' + email + '?')) return;
+  await sb.from('convites').delete().eq('email', email);
+  abrirEquipe();
+}
+async function salvarPessoa(id) {
+  const dados = { nome: $('nome-' + id).value.trim(), papel: $('papel-' + id).value };
+  if (id === perfil.id && dados.papel !== 'admin' && !confirm('Você vai tirar o SEU acesso de administrador. Continuar?')) return;
+  const r = await sb.from('perfis').update(dados).eq('id', id);
+  if (r.error) { msg('status-equipe', esc(erroTexto(r.error)), 'erro'); return; }
+  if (id === perfil.id) { perfil.nome = dados.nome; perfil.papel = dados.papel; $('usuario-nome').textContent = dados.nome; }
+  await abrirEquipe();
+  msg('status-equipe', '✅ Salvo.', 'ok');
+}
+async function alternarAtivo(id, ativo) {
+  if (!ativo && !confirm('Desativar o acesso desta pessoa? Ela não conseguirá mais entrar (o histórico dela continua guardado).')) return;
+  const r = await sb.from('perfis').update({ ativo: ativo }).eq('id', id);
+  if (r.error) { msg('status-equipe', esc(erroTexto(r.error)), 'erro'); return; }
+  abrirEquipe();
 }
 
-// Carrega o mini-resumo de progresso assim que o app abre
-atualizarMiniProgresso();
-</script>
+// ===================================================================
+function voltarInicio() {
+  itemAtual = null; baixaAtual = null;
+  pararScanner();
+  mostrar('tela-inicial');
+  inputManual.value = '';
+  $('status-inicial').innerHTML = '';
+  atualizarMiniProgresso();
+}
 
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(function () {});
+iniciarSessao();
+</script>
 </body>
 </html>
