@@ -160,6 +160,7 @@
     <button class="btn-secondary" onclick="verCodigosLivres()">🔢 Códigos livres na sequência</button>
     <button class="btn-secondary" onclick="abrirListaBaixas()">📦 Baixados / transferidos</button>
     <button class="btn-secondary" onclick="exportarInventario()">📥 Baixar inventário (Excel)</button>
+    <button class="btn-secondary" id="btn-duplicados" style="display:none;" onclick="abrirDuplicados()">🔍 Possíveis duplicados</button>
     <button class="btn-secondary" id="btn-equipe" style="display:none;" onclick="abrirEquipe()">👥 Equipe (acessos)</button>
 
     <div id="mini-progresso">
@@ -256,6 +257,7 @@
     <button class="btn-primary" style="margin-top:16px;" onclick="salvar()">✅ Salvar e marcar como conferido</button>
     <button class="btn-secondary" onclick="imprimirEtiquetaItem()">🏷️ Imprimir etiqueta deste item</button>
     <button class="btn-baixa" id="btn-ficha-baixa" onclick="abrirBaixaDaFicha()">📤 Registrar baixa / transferência</button>
+    <button class="btn-secondary" id="btn-ficha-unificar" style="display:none;" onclick="unificarDaFicha()">🔗 Este item está duplicado? Unificar</button>
     <button class="btn-secondary" onclick="voltarInicio()">Cancelar / escanear outro</button>
     <div id="status-ficha" class="status-msg"></div>
 
@@ -340,6 +342,37 @@
     <div id="status-baixa" class="status-msg"></div>
   </div>
 
+  <!-- ================= POSSÍVEIS DUPLICADOS (admin) ================= -->
+  <div id="tela-duplicados" class="card" style="display:none;">
+    <h2 class="tit">🔍 Possíveis duplicados</h2>
+    <div class="info-linha" style="margin-bottom:10px;">O app só <b>sugere</b>. Confira o item na sala antes de unificar — itens iguais (ex.: várias cadeiras) não são duplicados.</div>
+    <div id="lista-duplicados"></div>
+    <button class="btn-secondary" style="margin-top:14px;" onclick="voltarInicio()">Voltar</button>
+  </div>
+
+  <!-- ================= UNIFICAR (admin) ================= -->
+  <div id="tela-unificar" class="card" style="display:none;">
+    <h2 class="tit">🔗 Unificar itens duplicados</h2>
+    <div id="unif-escolha" style="display:none;">
+      <label for="unif-outro">Código do OUTRO item (PAT ou código da prefeitura)</label>
+      <div class="manual-busca" style="margin-top:0;">
+        <input type="text" id="unif-outro" placeholder="Bipe ou digite a outra etiqueta">
+        <button class="btn-secondary" onclick="compararComOutro()">Comparar</button>
+      </div>
+    </div>
+    <div id="unif-comparacao"></div>
+    <div id="unif-acoes" style="display:none;">
+      <label class="linha-check" style="font-weight:normal;"><input type="checkbox" id="unif-liberar">
+        <span>O código do item que sai <b>nunca teve etiqueta colada</b> (pode ser reaproveitado)</span></label>
+      <div class="info-linha" style="font-size:11px;">Deixe desmarcado se havia etiqueta PAT colada: o número fica bloqueado para sempre e, se alguém bipar a etiqueta antiga, o app leva para o item que ficou.</div>
+      <label for="unif-motivo">Motivo / observação</label>
+      <input type="text" id="unif-motivo" placeholder="Ex: mesmo aparelho com duas etiquetas">
+      <button class="btn-primary" style="margin-top:14px;" onclick="confirmarUnificacao()">🔗 Unificar</button>
+    </div>
+    <button class="btn-secondary" onclick="voltarInicio()">Cancelar</button>
+    <div id="status-unificar" class="status-msg"></div>
+  </div>
+
   <!-- ================= EQUIPE (admin) ================= -->
   <div id="tela-equipe" class="card" style="display:none;">
     <h2 class="tit">👥 Equipe e acessos</h2>
@@ -386,7 +419,7 @@ let emRecuperacao = /type=recovery/.test(location.hash);
 let iniciando = false;
 
 const TELAS = ['tela-login', 'tela-nova-senha', 'tela-sem-acesso', 'tela-inicial', 'video-wrap', 'tela-progresso',
-  'tela-cadastro', 'tela-sala', 'tela-ficha', 'tela-baixas', 'tela-baixa', 'tela-equipe'];
+  'tela-cadastro', 'tela-sala', 'tela-ficha', 'tela-baixas', 'tela-baixa', 'tela-equipe', 'tela-duplicados', 'tela-unificar'];
 function mostrar(id) {
   TELAS.forEach(function (t) { document.getElementById(t).style.display = (t === id ? 'block' : 'none'); });
   window.scrollTo(0, 0);
@@ -502,6 +535,7 @@ async function iniciarSessao() {
     $('usuario-nome').textContent = perfil.nome;
     $('usuario-papel').textContent = perfil.papel === 'admin' ? '(administrador)' : '';
     $('btn-equipe').style.display = perfil.papel === 'admin' ? 'block' : 'none';
+    $('btn-duplicados').style.display = perfil.papel === 'admin' ? 'block' : 'none';
     voltarInicio();
     carregarItens();
   } catch (e) {
@@ -645,6 +679,7 @@ async function buscar(codigo) {
       .or('pat.eq."' + pat + '",codigo_prefeitura.eq."' + bruto + '"').limit(1);
     if (r.error) throw r.error;
     if (r.data.length) { itemAtual = r.data[0]; mostrarFicha(itemAtual); return; }
+    if (await mostrarSeFoiUnificado(pat, bruto)) return;
     if (await mostrarSeFoiBaixado(pat, bruto)) return;
     msg('status-inicial', 'Código não encontrado: ' + esc(bruto), 'erro');
   } catch (e) {
@@ -678,6 +713,7 @@ async function mostrarFicha(item) {
   fotoArquivo = null;
   $('campo-foto').value = '';
   $('foto-nova-preview').style.display = 'none';
+  $('btn-ficha-unificar').style.display = perfil && perfil.papel === 'admin' ? 'block' : 'none';
   $('ficha-hist').open = false;
   $('ficha-hist-lista').innerHTML = '';
 
@@ -1242,6 +1278,180 @@ async function carregarListaBaixas() {
     row.onclick = function () { prepararFormBaixa({ pat: b.pat, descricao: b.descricao, ultima_sala: b.ultima_sala }, b); };
     div.appendChild(row);
   });
+}
+
+// ===================================================================
+// DUPLICADOS E UNIFICAÇÃO (só administradores)
+// ===================================================================
+let unifA = null, unifB = null, unifManter = 'A';
+
+function semZeros(c) { return String(c || '').trim().replace(/^0+/, ''); }
+function normDesc(d) {
+  return String(d || '').toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^A-Z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+}
+// Quanto mais campos preenchidos, mais "completo" é o item
+function pontuacao(i) {
+  let p = 0;
+  if (i.codigo_prefeitura) p += 3;
+  if (i.foto_path) p += 2;
+  if (i.situacao) p++;
+  if (i.observacoes) p++;
+  if (i.data_aquisicao_idade) p++;
+  if (i.valor_aquisicao) p++;
+  if (i.conferido_nesta_rodada) p++;
+  p += Math.min(3, Math.floor(String(i.descricao || '').length / 15));
+  return p;
+}
+
+async function abrirDuplicados() {
+  mostrar('tela-duplicados');
+  const div = $('lista-duplicados');
+  div.innerHTML = '<div class="status-msg">Procurando...</div>';
+  try { await carregarItens(); } catch (e) {}
+  const porCod = {}, porDesc = {};
+  cacheItens.forEach(function (i) {
+    const c = semZeros(i.codigo_prefeitura);
+    if (c) (porCod[c] = porCod[c] || []).push(i);
+    const d = normDesc(i.descricao) + '|' + String(i.local_atual || '').trim();
+    (porDesc[d] = porDesc[d] || []).push(i);
+  });
+  const gruposCod = Object.values(porCod).filter(function (g) { return g.length > 1; });
+  const jaListados = {};
+  gruposCod.forEach(function (g) { g.forEach(function (i) { jaListados[i.pat] = true; }); });
+  const gruposDesc = Object.values(porDesc).filter(function (g) {
+    return g.length > 1 && !g.every(function (i) { return jaListados[i.pat]; });
+  }).sort(function (a, b) { return String(a[0].local_atual).localeCompare(String(b[0].local_atual), 'pt-BR'); });
+
+  let h = '';
+  h += '<h2 class="tit" style="font-size:14px;">1) Mesmo código da prefeitura (' + gruposCod.length + ') — quase certo</h2>';
+  h += gruposCod.length ? gruposCod.map(function (g, k) { return htmlGrupo(g, 'c' + k); }).join('')
+    : '<div class="info-linha">Nenhum caso. ✅</div>';
+  h += '<h2 class="tit" style="font-size:14px;margin-top:18px;">2) Mesma descrição na mesma sala (' + gruposDesc.length + ') — conferir</h2>';
+  h += gruposDesc.length ? gruposDesc.map(function (g, k) { return htmlGrupo(g, 'd' + k); }).join('')
+    : '<div class="info-linha">Nenhum caso. ✅</div>';
+  div.innerHTML = h;
+}
+function htmlGrupo(g, id) {
+  const marcar = g.length === 2;
+  return '<div class="pessoa" id="grp-' + id + '">' +
+    g.map(function (i) {
+      return '<label style="display:flex;gap:8px;align-items:flex-start;font-weight:normal;color:#222;font-size:13px;margin:4px 0;">' +
+        '<input type="checkbox" style="width:auto;margin-top:3px;" value="' + esc(i.pat) + '"' + (marcar ? ' checked' : '') + '>' +
+        '<span><b>' + esc(i.pat) + '</b> — ' + esc(i.descricao) + '<br><span style="color:var(--cinza);font-size:11px;">' +
+        esc(i.local_atual || '—') + (i.codigo_prefeitura ? ' · Pref. ' + esc(i.codigo_prefeitura) : ' · sem cód. prefeitura') +
+        (i.foto_path ? ' · 📷' : '') + '</span></span></label>';
+    }).join('') +
+    '<button class="btn-secondary" style="padding:8px;font-size:13px;" onclick="compararGrupo(\'' + id + '\')">Comparar os 2 marcados</button></div>';
+}
+function compararGrupo(id) {
+  const marcados = Array.from(document.querySelectorAll('#grp-' + id + ' input:checked')).map(function (c) { return c.value; });
+  if (marcados.length !== 2) { alert('Marque exatamente 2 itens para comparar.'); return; }
+  abrirComparacao(marcados[0], marcados[1]);
+}
+
+function unificarDaFicha() {
+  if (!itemAtual) return;
+  unifA = itemAtual; unifB = null;
+  mostrar('tela-unificar');
+  $('unif-escolha').style.display = 'block';
+  $('unif-outro').value = '';
+  $('unif-comparacao').innerHTML = '<div class="info-linha">Item atual: <b>' + esc(unifA.pat) + '</b> — ' + esc(unifA.descricao) +
+    '<br>Agora bipe ou digite a <b>outra etiqueta</b> do mesmo bem.</div>';
+  $('unif-acoes').style.display = 'none';
+  $('status-unificar').innerHTML = '';
+  setTimeout(function () { $('unif-outro').focus(); }, 200);
+}
+$('unif-outro').addEventListener('keydown', function (e) {
+  if (e.key === 'Enter' || e.keyCode === 13) { e.preventDefault(); compararComOutro(); }
+});
+async function compararComOutro() {
+  const bruto = $('unif-outro').value.trim();
+  if (!bruto || !unifA) return;
+  const pat = normPat(bruto);
+  const r = await sb.from('itens').select('pat').or('pat.eq."' + pat + '",codigo_prefeitura.eq."' + bruto + '"').neq('pat', unifA.pat).limit(1);
+  if (r.error || !r.data.length) { msg('status-unificar', 'Não encontrei outro item ativo com "' + esc(bruto) + '".', 'erro'); return; }
+  abrirComparacao(unifA.pat, r.data[0].pat);
+}
+
+async function abrirComparacao(patA, patB) {
+  mostrar('tela-unificar');
+  $('unif-escolha').style.display = 'none';
+  $('unif-acoes').style.display = 'none';
+  $('status-unificar').innerHTML = '';
+  $('unif-comparacao').innerHTML = '<div class="status-msg">Carregando...</div>';
+  const r = await sb.from('itens').select('*').in('pat', [patA, patB]);
+  if (r.error || r.data.length !== 2) { $('unif-comparacao').innerHTML = '<div class="status-msg erro">Não foi possível carregar os dois itens.</div>'; return; }
+  unifA = r.data.find(function (i) { return i.pat === patA; });
+  unifB = r.data.find(function (i) { return i.pat === patB; });
+  unifManter = pontuacao(unifB) > pontuacao(unifA) ? 'B' : 'A';
+  const fotos = await Promise.all([urlAssinada(unifA.foto_path), urlAssinada(unifB.foto_path)]);
+  const linhas = [
+    ['Código', 'pat'], ['Cód. prefeitura', 'codigo_prefeitura'], ['Descrição', 'descricao'], ['Sala', 'local_atual'],
+    ['Situação', 'situacao'], ['Observações', 'observacoes'], ['Aquisição / idade', 'data_aquisicao_idade'],
+    ['Valor', 'valor_aquisicao'], ['Última conferência', 'data_ultima_conferencia']
+  ];
+  const cel = function (i, c) {
+    const v = c === 'data_ultima_conferencia' ? dataHoraBR(i[c]) : i[c];
+    return v ? esc(v) : '<span style="color:#bbb">—</span>';
+  };
+  let h = '<table style="width:100%;border-collapse:collapse;font-size:12px;">' +
+    '<tr><td></td>' + ['A', 'B'].map(function (k) {
+      return '<td style="padding:4px;text-align:center;"><label style="margin:0;font-size:12px;color:#222;display:flex;gap:4px;justify-content:center;">' +
+        '<input type="radio" name="unif-manter" value="' + k + '" style="width:auto;"' + (unifManter === k ? ' checked' : '') +
+        ' onchange="unifManter=this.value;resumoUnificacao()"> Manter este</label></td>';
+    }).join('') + '</tr>';
+  h += '<tr><td style="padding:4px;color:var(--cinza);">Foto</td>' + fotos.map(function (u) {
+    return '<td style="padding:4px;text-align:center;">' + (u ? '<img src="' + esc(u) + '" style="width:100%;max-height:110px;object-fit:contain;background:#f4f4f4;border-radius:6px;">' : '<span style="color:#bbb">sem foto</span>') + '</td>';
+  }).join('') + '</tr>';
+  linhas.forEach(function (l) {
+    h += '<tr style="border-top:1px solid #eee;"><td style="padding:4px;color:var(--cinza);width:28%;">' + l[0] + '</td>' +
+      '<td style="padding:4px;width:36%;">' + cel(unifA, l[1]) + '</td><td style="padding:4px;width:36%;">' + cel(unifB, l[1]) + '</td></tr>';
+  });
+  h += '</table><div id="unif-resumo" class="aviso-baixa" style="margin-top:10px;"></div>';
+  $('unif-comparacao').innerHTML = h;
+  $('unif-liberar').checked = false;
+  $('unif-motivo').value = '';
+  $('unif-acoes').style.display = 'block';
+  resumoUnificacao();
+}
+function resumoUnificacao() {
+  const m = unifManter === 'A' ? unifA : unifB, s = unifManter === 'A' ? unifB : unifA;
+  let aviso = '';
+  if (m.codigo_prefeitura && s.codigo_prefeitura && semZeros(m.codigo_prefeitura) !== semZeros(s.codigo_prefeitura)) {
+    aviso = '<br>⚠️ <b>Os códigos da prefeitura são diferentes</b> (' + esc(m.codigo_prefeitura) + ' × ' + esc(s.codigo_prefeitura) +
+      '). Tem certeza de que é o mesmo bem? O código do que sai fica anotado nas observações.';
+  }
+  $('unif-resumo').innerHTML = 'Fica <b>' + esc(m.pat) + '</b>. Sai <b>' + esc(s.pat) + '</b>.<br>' +
+    'Os campos vazios de ' + esc(m.pat) + ' serão completados com os de ' + esc(s.pat) +
+    ' (código da prefeitura, foto, situação...). As observações são somadas.' + aviso;
+}
+async function confirmarUnificacao() {
+  const m = unifManter === 'A' ? unifA : unifB, s = unifManter === 'A' ? unifB : unifA;
+  if (!confirm('Unificar?\n\nFICA: ' + m.pat + ' — ' + m.descricao + '\nSAI: ' + s.pat + ' — ' + s.descricao +
+    '\n\nEssa ação fica registrada no histórico.')) return;
+  msg('status-unificar', 'Unificando...');
+  const r = await sb.rpc('unificar_itens', {
+    p_manter: m.pat, p_remover: s.pat, p_liberar_codigo: $('unif-liberar').checked, p_motivo: $('unif-motivo').value.trim()
+  });
+  if (r.error) { msg('status-unificar', 'Erro: ' + esc(erroTexto(r.error)), 'erro'); return; }
+  $('unif-acoes').style.display = 'none';
+  msg('status-unificar', '✅ Unificado! Ficou ' + esc(r.data.mantido) + '. ' +
+    (r.data.codigo_liberado ? 'O código ' + esc(r.data.removido) + ' foi liberado para reaproveitar.'
+      : 'O código ' + esc(r.data.removido) + ' ficou bloqueado; quem bipar a etiqueta antiga cai em ' + esc(r.data.mantido) + '.'), 'ok');
+  carregarItens().catch(function () {});
+}
+
+// Quem bipar a etiqueta de um item que foi unificado é levado ao item que ficou
+async function mostrarSeFoiUnificado(pat, bruto) {
+  const r = await sb.from('unificacoes').select('*')
+    .or('pat_removido.eq."' + pat + '",codigo_prefeitura_removido.eq."' + bruto + '"').order('criado_em', { ascending: false }).limit(1);
+  if (r.error || !r.data.length) return false;
+  const u = r.data[0];
+  $('status-inicial').innerHTML = '<div class="aviso-baixa">🔗 <b>' + esc(u.pat_removido) + '</b> era duplicado e foi unificado com <b>' +
+    esc(u.pat_mantido) + '</b> em ' + esc(dataBR(u.criado_em)) + ' por ' + esc(u.usuario_nome || '—') + '.' +
+    '<br>Se esta etiqueta ainda está colada no bem, troque pela etiqueta de ' + esc(u.pat_mantido) + '.' +
+    '<br><button class="btn-secondary" style="margin-top:8px;" onclick="buscar(\'' + esc(u.pat_mantido) + '\')">Abrir ' + esc(u.pat_mantido) + '</button></div>';
+  return true;
 }
 
 // ===================================================================
