@@ -96,6 +96,12 @@
     details.hist summary { cursor: pointer; font-size: 13px; color: var(--azul); font-weight: 600; margin-top: 14px; }
     .hist-linha { font-size: 12px; border-bottom: 1px solid #eee; padding: 6px 0; }
     .hist-linha b { color: var(--azul); }
+    .item-lista.cod-ok { background: #E2EFDA; border-radius: 6px; margin-bottom: 3px; border-bottom: none; padding: 9px 8px; }
+    .item-lista.cod-falta { background: #FCE4D6; border-radius: 6px; margin-bottom: 3px; border-bottom: none; padding: 9px 8px; }
+    .legenda { display: flex; gap: 12px; font-size: 11px; color: var(--cinza); margin: 8px 0; flex-wrap: wrap; }
+    .legenda span::before { content: ''; display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; vertical-align: -1px; }
+    .legenda .lg-ok::before { background: #A9D08E; }
+    .legenda .lg-falta::before { background: #F4B183; }
     .pessoa { border: 1px solid #eee; border-radius: 8px; padding: 10px; margin-bottom: 8px; }
     .pessoa .linha { display: flex; gap: 6px; margin-top: 6px; }
     .pessoa .linha > * { flex: 1; }
@@ -157,6 +163,7 @@
     <button class="btn-secondary" style="margin-top:10px;" onclick="abrirFiltroSala()">🏷️ Ver itens por sala</button>
     <button class="btn-secondary" onclick="abrirCadastroNovo()">➕ Cadastrar item novo (sem código ainda)</button>
     <button class="btn-secondary" onclick="abrirProgresso()">📊 Ver progresso da conferência</button>
+    <button class="btn-secondary" onclick="abrirSemCodigo()">🟠 Sem código da prefeitura</button>
     <button class="btn-secondary" onclick="verCodigosLivres()">🔢 Códigos livres na sequência</button>
     <button class="btn-secondary" onclick="abrirListaBaixas()">📦 Baixados / transferidos</button>
     <button class="btn-secondary" onclick="exportarInventario()">📥 Baixar inventário (Excel)</button>
@@ -216,7 +223,22 @@
     </label>
     <button class="btn-secondary" onclick="voltarInicio()">Voltar</button>
     <div id="status-relatorio" class="status-msg"></div>
-    <div id="lista-sala" style="margin-top:14px;"></div>
+    <label for="filtro-codpref">Mostrar na lista</label>
+    <select id="filtro-codpref" onchange="listarItensDaSala()">
+      <option value="">Todos os itens</option>
+      <option value="falta">🟠 Só os SEM código da prefeitura</option>
+      <option value="ok">🟢 Só os COM código da prefeitura</option>
+    </select>
+    <div id="lista-sala" style="margin-top:10px;"></div>
+  </div>
+
+  <!-- ================= SEM CÓDIGO DA PREFEITURA ================= -->
+  <div id="tela-sem-codigo" class="card" style="display:none;">
+    <h2 class="tit">🟠 Itens sem código da prefeitura</h2>
+    <div id="resumo-sem-codigo"></div>
+    <button class="btn-secondary" onclick="imprimirSemCodigo()">📄 Imprimir / salvar PDF desta lista</button>
+    <button class="btn-secondary" onclick="voltarInicio()">Voltar</button>
+    <div id="lista-sem-codigo" style="margin-top:12px;"></div>
   </div>
 
   <!-- ================= FICHA ================= -->
@@ -419,7 +441,7 @@ let emRecuperacao = /type=recovery/.test(location.hash);
 let iniciando = false;
 
 const TELAS = ['tela-login', 'tela-nova-senha', 'tela-sem-acesso', 'tela-inicial', 'video-wrap', 'tela-progresso',
-  'tela-cadastro', 'tela-sala', 'tela-ficha', 'tela-baixas', 'tela-baixa', 'tela-equipe', 'tela-duplicados', 'tela-unificar'];
+  'tela-cadastro', 'tela-sala', 'tela-ficha', 'tela-baixas', 'tela-baixa', 'tela-equipe', 'tela-duplicados', 'tela-unificar', 'tela-sem-codigo'];
 function mostrar(id) {
   TELAS.forEach(function (t) { document.getElementById(t).style.display = (t === id ? 'block' : 'none'); });
   window.scrollTo(0, 0);
@@ -784,15 +806,16 @@ async function carregarHistoricoItem() {
 // ===================================================================
 function contarProgresso() {
   const porSala = {};
-  let conf = 0;
+  let conf = 0, semCod = 0;
   cacheItens.forEach(function (i) {
     const s = (i.local_atual || '(sem sala)').trim();
-    if (!porSala[s]) porSala[s] = { sala: s, total: 0, conferidos: 0 };
+    if (!porSala[s]) porSala[s] = { sala: s, total: 0, conferidos: 0, semCodigo: 0 };
     porSala[s].total++;
     if (i.conferido_nesta_rodada) { conf++; porSala[s].conferidos++; }
+    if (!temCodPref(i)) { semCod++; porSala[s].semCodigo++; }
   });
   return {
-    total: cacheItens.length, conferidos: conf, pendentes: cacheItens.length - conf,
+    total: cacheItens.length, conferidos: conf, pendentes: cacheItens.length - conf, semCodigo: semCod,
     porSala: Object.values(porSala).sort(function (a, b) { return a.sala.localeCompare(b.sala, 'pt-BR'); })
   };
 }
@@ -819,11 +842,13 @@ async function abrirProgresso() {
     '<div><div class="resumo-numero" style="color:var(--verde)">' + p.conferidos + '</div><div class="resumo-label">CONFERIDOS</div></div>' +
     '<div><div class="resumo-numero" style="color:var(--amarelo)">' + p.pendentes + '</div><div class="resumo-label">PENDENTES</div></div></div>' +
     '<div class="barra-fundo"><div class="barra-preenchida" style="width:' + pct + '%"></div></div>' +
-    '<div style="text-align:center;font-size:12px;color:var(--cinza);margin-top:4px;">' + pct + '% conferido no geral</div>';
+    '<div style="text-align:center;font-size:12px;color:var(--cinza);margin-top:4px;">' + pct + '% conferido no geral</div>' +
+    '<div style="text-align:center;font-size:12px;margin-top:6px;">🟠 <b style="color:#C55A11">' + p.semCodigo + '</b> itens ainda sem código da prefeitura</div>';
   $('lista-progresso').innerHTML = p.porSala.map(function (s) {
     const ps = s.total ? Math.round(s.conferidos / s.total * 100) : 0;
     return '<div class="linha-progresso-sala"><div class="topo"><span>' + esc(s.sala) + '</span><span>' + s.conferidos + '/' + s.total +
-      '</span></div><div class="barra-fundo"><div class="barra-preenchida" style="width:' + ps + '%"></div></div></div>';
+      '</span></div><div class="barra-fundo"><div class="barra-preenchida" style="width:' + ps + '%"></div></div>' +
+      (s.semCodigo ? '<div style="font-size:11px;color:#C55A11;margin-top:2px;">🟠 ' + s.semCodigo + ' sem código da prefeitura</div>' : '') + '</div>';
   }).join('');
 }
 async function novaRodada() {
@@ -853,17 +878,87 @@ async function listarItensDaSala() {
   const div = $('lista-sala');
   div.innerHTML = '<div class="status-msg">Carregando...</div>';
   try { await carregarItens(); } catch (e) {}
-  const itens = itensDaSala(sala);
-  if (!itens.length) { div.innerHTML = '<div class="status-msg">Nenhum item nessa sala.</div>'; return; }
-  div.innerHTML = '';
-  itens.forEach(function (item) {
-    const row = document.createElement('div');
-    row.className = 'item-lista';
-    row.innerHTML = '<span class="nome">' + esc(item.descricao) + ' <span style="color:#999">(' + esc(item.pat) + ')</span></span>' +
-      '<span class="tag ' + (item.conferido_nesta_rodada ? 'tag-ok' : 'tag-pendente') + '">' + (item.conferido_nesta_rodada ? 'conferido' : 'pendente') + '</span>';
-    row.onclick = function () { itemAtual = item; mostrarFicha(item); };
-    div.appendChild(row);
+  const todos = itensDaSala(sala);
+  if (!todos.length) { div.innerHTML = '<div class="status-msg">Nenhum item nessa sala.</div>'; return; }
+  const comCod = todos.filter(temCodPref).length;
+  const f = $('filtro-codpref').value;
+  const itens = todos.filter(function (i) { return !f || (f === 'ok' ? temCodPref(i) : !temCodPref(i)); });
+  div.innerHTML = '<div class="info-linha"><b>' + todos.length + '</b> itens · 🟢 <b>' + comCod + '</b> com código da prefeitura · 🟠 <b>' +
+    (todos.length - comCod) + '</b> sem</div>' +
+    '<div class="legenda"><span class="lg-ok">tem código da prefeitura</span><span class="lg-falta">só etiqueta PAT</span></div>';
+  if (!itens.length) { div.innerHTML += '<div class="status-msg">Nenhum item com esse filtro.</div>'; return; }
+  itens.forEach(function (item) { div.appendChild(linhaItem(item, true)); });
+}
+
+function temCodPref(i) { return !!String(i.codigo_prefeitura || '').trim(); }
+
+// Linha de item colorida: verde = tem código da prefeitura, laranja = só PAT
+function linhaItem(item, mostrarConferido) {
+  const row = document.createElement('div');
+  const ok = temCodPref(item);
+  row.className = 'item-lista ' + (ok ? 'cod-ok' : 'cod-falta');
+  row.innerHTML = '<span class="nome">' + esc(item.descricao) + ' <span style="color:#777">(' + esc(item.pat) + ')</span>' +
+    '<br><span style="font-size:11px;color:#555">' + (ok ? 'Pref. ' + esc(item.codigo_prefeitura) : 'sem código da prefeitura') + '</span></span>' +
+    (mostrarConferido ? '<span class="tag ' + (item.conferido_nesta_rodada ? 'tag-ok' : 'tag-pendente') + '" style="background:#fff">' +
+      (item.conferido_nesta_rodada ? 'conferido' : 'pendente') + '</span>' : '');
+  row.onclick = function () { itemAtual = item; mostrarFicha(item); };
+  return row;
+}
+
+// ---------- LISTA GERAL: SEM CÓDIGO DA PREFEITURA ----------
+function gruposSemCodigo() {
+  const g = {};
+  cacheItens.filter(function (i) { return !temCodPref(i); }).forEach(function (i) {
+    const s = (i.local_atual || '(sem sala)').trim();
+    (g[s] = g[s] || []).push(i);
   });
+  return Object.keys(g).sort(function (a, b) { return a.localeCompare(b, 'pt-BR'); }).map(function (s) {
+    return { sala: s, itens: g[s].sort(function (a, b) { return String(a.descricao).localeCompare(String(b.descricao), 'pt-BR'); }) };
+  });
+}
+async function abrirSemCodigo() {
+  mostrar('tela-sem-codigo');
+  $('lista-sem-codigo').innerHTML = '<div class="status-msg">Carregando...</div>';
+  try { await carregarItens(); } catch (e) {}
+  const grupos = gruposSemCodigo();
+  const falta = grupos.reduce(function (n, g) { return n + g.itens.length; }, 0);
+  const total = cacheItens.length;
+  const pct = total ? Math.round((total - falta) / total * 100) : 0;
+  $('resumo-sem-codigo').innerHTML =
+    '<div class="resumo-caixa">' +
+    '<div><div class="resumo-numero">' + total + '</div><div class="resumo-label">TOTAL</div></div>' +
+    '<div><div class="resumo-numero" style="color:var(--verde)">' + (total - falta) + '</div><div class="resumo-label">🟢 COM CÓDIGO</div></div>' +
+    '<div><div class="resumo-numero" style="color:#C55A11">' + falta + '</div><div class="resumo-label">🟠 SEM CÓDIGO</div></div></div>' +
+    '<div class="barra-fundo"><div class="barra-preenchida" style="width:' + pct + '%"></div></div>' +
+    '<div style="text-align:center;font-size:12px;color:var(--cinza);margin:4px 0 8px;">' + pct + '% já têm código da prefeitura</div>';
+  const div = $('lista-sem-codigo');
+  div.innerHTML = grupos.length ? '' : '<div class="status-msg ok">Todos os itens têm código da prefeitura! ✅</div>';
+  grupos.forEach(function (g) {
+    const det = document.createElement('details');
+    det.style.marginBottom = '8px';
+    det.innerHTML = '<summary style="cursor:pointer;font-weight:600;font-size:14px;color:var(--azul);padding:6px 0;">' +
+      esc(g.sala) + ' <span style="color:#C55A11">(' + g.itens.length + ')</span></summary>';
+    g.itens.forEach(function (i) { det.appendChild(linhaItem(i, false)); });
+    div.appendChild(det);
+  });
+}
+function imprimirSemCodigo() {
+  const w = abrirJanela('Itens sem código da prefeitura', CSS_DOC);
+  if (!w) return;
+  const grupos = gruposSemCodigo();
+  const falta = grupos.reduce(function (n, g) { return n + g.itens.length; }, 0);
+  let h = cabecalhoDoc() + '<h1>Itens sem código da prefeitura</h1>' +
+    '<div class="sub">Gerado em ' + dataHoraBR(new Date()) + ' por ' + esc(perfil.nome) + ' — ' + falta + ' de ' + cacheItens.length + ' itens</div>';
+  grupos.forEach(function (g) {
+    h += '<h2>' + esc(g.sala) + ' (' + g.itens.length + ')</h2><table><tr><th style="width:18%">Código</th><th>Descrição</th><th style="width:16%">Situação</th><th style="width:22%">Cód. prefeitura (anotar)</th></tr>' +
+      g.itens.map(function (i) {
+        return '<tr style="background:#FCE4D6"><td>' + esc(i.pat) + '</td><td>' + esc(i.descricao) + '</td><td>' + esc(i.situacao || '—') + '</td><td></td></tr>';
+      }).join('') + '</table>';
+  });
+  h += '<div class="rod">Desenvolvido por antonioresolve.com</div>';
+  const c = w.document.getElementById('conteudo');
+  c.style.padding = '0'; c.innerHTML = h;
+  imprimirQuandoPronto(w);
 }
 
 // Janela de impressão aberta JÁ no clique (evita bloqueio de pop-up)
@@ -918,7 +1013,7 @@ async function gerarRelatorioSala() {
       '<div class="sub">Gerado em ' + dataHoraBR(new Date()) + ' por ' + esc(perfil.nome) + ' — ' + itens.length + ' item(ns)</div>' +
       '<table><tr><th>Código</th><th>Descrição</th><th>Situação</th><th>Código Prefeitura</th><th>Conferido</th></tr>' +
       itens.map(function (i) {
-        return '<tr><td>' + esc(i.pat) + '</td><td>' + esc(i.descricao) + '</td><td' + (i.situacao ? '' : ' class="vazio"') + '>' +
+        return '<tr style="background:' + (temCodPref(i) ? '#E2EFDA' : '#FCE4D6') + '"><td>' + esc(i.pat) + '</td><td>' + esc(i.descricao) + '</td><td' + (i.situacao ? '' : ' class="vazio"') + '>' +
           esc(i.situacao || '—') + '</td><td>' + esc(i.codigo_prefeitura || '—') + '</td><td>' + (i.conferido_nesta_rodada ? 'Sim' : 'Não') + '</td></tr>';
       }).join('') + '</table>';
     if (comFoto.length) {
