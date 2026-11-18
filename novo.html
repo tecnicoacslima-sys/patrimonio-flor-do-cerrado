@@ -412,8 +412,13 @@
     <button class="btn-primary" style="margin-top:12px;" onclick="convidar()">➕ Convidar</button>
     <div class="info-linha" style="font-size:11px;margin-top:6px;">Depois do convite, a pessoa abre o app, digita o e-mail e toca em "Primeiro acesso: criar minha senha".</div>
     <div id="lista-convites" style="margin-top:14px;"></div>
-    <button class="btn-secondary" style="margin-top:14px;" onclick="voltarInicio()">Voltar</button>
     <div id="status-equipe" class="status-msg"></div>
+
+    <h2 class="tit" style="margin-top:22px;">🛠️ Manutenção</h2>
+    <button class="btn-secondary" onclick="reduzirFotosAntigas()">🗜️ Reduzir fotos pesadas (liberar espaço)</button>
+    <div class="info-linha" style="font-size:11px;margin-top:4px;">Use no computador, com internet boa. Reduz as fotos grandes (vindas da planilha) para o mesmo tamanho das tiradas pelo app. Pode fechar e continuar depois: ele só mexe nas que ainda estão pesadas.</div>
+    <div id="status-fotos" class="status-msg"></div>
+    <button class="btn-secondary" style="margin-top:14px;" onclick="voltarInicio()">Voltar</button>
   </div>
 
   <div class="rodape">ESF Flor do Cerrado — Nova Mutum/MT<br>Desenvolvido por antonioresolve.com</div>
@@ -1547,6 +1552,62 @@ async function mostrarSeFoiUnificado(pat, bruto) {
     '<br>Se esta etiqueta ainda está colada no bem, troque pela etiqueta de ' + esc(u.pat_mantido) + '.' +
     '<br><button class="btn-secondary" style="margin-top:8px;" onclick="buscar(\'' + esc(u.pat_mantido) + '\')">Abrir ' + esc(u.pat_mantido) + '</button></div>';
   return true;
+}
+
+// ===================================================================
+// MANUTENÇÃO: reduzir fotos pesadas (só administradores)
+// ===================================================================
+let reduzindo = false;
+async function reduzirFotosAntigas() {
+  if (reduzindo) return;
+  const st = $('status-fotos');
+  const LIMITE = 700 * 1024; // acima disso, a foto é reduzida
+  reduzindo = true;
+  try {
+    st.innerHTML = 'Procurando fotos pesadas...';
+    let pesadas = [];
+    for (const pasta of ['itens', 'baixas']) {
+      const r = await sb.storage.from(BUCKET).list(perfil.unidade_id + '/' + pasta, { limit: 2000 });
+      if (r.error) throw r.error;
+      r.data.forEach(function (f) {
+        const tam = f.metadata ? f.metadata.size : 0;
+        const tipo = f.metadata ? String(f.metadata.mimetype || '') : '';
+        if (tam > LIMITE && /^image\//.test(tipo)) pesadas.push({ caminho: perfil.unidade_id + '/' + pasta + '/' + f.name, tam: tam });
+      });
+    }
+    if (!pesadas.length) { st.innerHTML = '<span class="status-msg ok">✅ Nenhuma foto pesada. Tudo otimizado!</span>'; return; }
+    if (!confirm(pesadas.length + ' fotos pesadas encontradas (' + Math.round(pesadas.reduce(function (s, p) { return s + p.tam; }, 0) / 1048576) +
+      ' MB). Reduzir agora?\n\nDeixe esta tela aberta até terminar.')) { st.innerHTML = ''; return; }
+    let feitas = 0, liberado = 0, falhas = 0;
+    for (const p of pesadas) {
+      st.innerHTML = 'Reduzindo ' + (feitas + falhas + 1) + ' de ' + pesadas.length + '... (' + Math.round(liberado / 1048576) + ' MB liberados)';
+      try {
+        const d = await sb.storage.from(BUCKET).download(p.caminho);
+        if (d.error) throw d.error;
+        const menor = await comprimirImagem(d.data);
+        if (!menor || menor.size >= p.tam) { falhas++; continue; }
+        const novo = p.caminho.replace(/\.[a-z0-9]+$/i, '') + '_r.jpg';
+        const up = await sb.storage.from(BUCKET).upload(novo, menor, { contentType: 'image/jpeg', upsert: false });
+        if (up.error) throw up.error;
+        const tr = await sb.rpc('trocar_foto_otimizada', { p_antigo: p.caminho, p_novo: novo });
+        if (tr.error) throw tr.error;
+        if (tr.data > 0) {
+          await sb.storage.from(BUCKET).remove([p.caminho]);
+          feitas++; liberado += p.tam - menor.size;
+        } else {
+          await sb.storage.from(BUCKET).remove([novo]); // foto antiga sem uso: não mexe
+          falhas++;
+        }
+      } catch (e) { falhas++; }
+    }
+    st.innerHTML = '<span class="status-msg ok">✅ ' + feitas + ' fotos reduzidas · ' + Math.round(liberado / 1048576) + ' MB liberados' +
+      (falhas ? ' · ' + falhas + ' puladas' : '') + '.</span>';
+    carregarItens().catch(function () {});
+  } catch (e) {
+    st.innerHTML = '<span class="status-msg erro">Erro: ' + esc(erroTexto(e)) + '</span>';
+  } finally {
+    reduzindo = false;
+  }
 }
 
 // ===================================================================
