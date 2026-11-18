@@ -102,6 +102,45 @@
     .legenda span::before { content: ''; display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; vertical-align: -1px; }
     .legenda .lg-ok::before { background: #A9D08E; }
     .legenda .lg-falta::before { background: #F4B183; }
+    .menu-botoes { margin-top: 10px; }
+
+    /* ===== COMPUTADOR / TELA LARGA =====
+       No celular nada muda. A partir de 900px, vira layout de site. */
+    @media (min-width: 900px) {
+      header { justify-content: flex-start; padding: 12px 32px; }
+      header img { height: 46px; }
+      header h1 { font-size: 20px; }
+      .container { max-width: 1180px; padding: 24px 32px; }
+      .card { padding: 24px 28px; }
+      #tela-login, #tela-nova-senha, #tela-sem-acesso { max-width: 440px; margin: 40px auto 16px; }
+      /* Início: busca em destaque e botões em grade */
+      #tela-inicial .usuario-barra { font-size: 13px; }
+      #tela-inicial > .btn-primary { max-width: 420px; }
+      #tela-inicial .manual-busca { max-width: 720px; }
+      .menu-botoes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 18px; }
+      .menu-botoes button { margin: 0; min-height: 64px; font-size: 15px; text-align: left; padding: 14px 18px; }
+      .menu-botoes button[style*="display: none"], .menu-botoes button[style*="display:none"] { display: none; }
+      #mini-progresso { max-width: 720px; }
+      /* Ficha em duas colunas: foto e dados à esquerda, campos à direita */
+      .ficha-colunas { display: grid; grid-template-columns: 5fr 6fr; gap: 32px; align-items: start; }
+      .foto-preview { max-height: 420px; }
+      /* Listas em duas colunas */
+      #lista-sala, #lista-baixas, #lista-equipe { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 16px; }
+      #lista-sala > .info-linha, #lista-sala > .legenda, #lista-sala > .status-msg { grid-column: 1 / -1; }
+      #lista-sem-codigo details { break-inside: avoid; }
+      #lista-sem-codigo { column-count: 2; column-gap: 24px; }
+      #lista-progresso { display: grid; grid-template-columns: 1fr 1fr; gap: 0 28px; }
+      /* Formulários com largura confortável */
+      #tela-cadastro, #tela-baixa, #tela-unificar { max-width: 820px; margin-left: auto; margin-right: auto; }
+      #tela-sala > select, #tela-sala > button, #tela-sala > label { max-width: 520px; }
+      #video-wrap { max-width: 640px; margin-left: auto; margin-right: auto; }
+      .btn-secondary, .btn-primary, .btn-baixa { transition: filter .15s; }
+      button:hover { filter: brightness(0.95); }
+    }
+    @media (min-width: 1300px) {
+      .menu-botoes { grid-template-columns: repeat(4, 1fr); }
+    }
+
     .pessoa { border: 1px solid #eee; border-radius: 8px; padding: 10px; margin-bottom: 8px; }
     .pessoa .linha { display: flex; gap: 6px; margin-top: 6px; }
     .pessoa .linha > * { flex: 1; }
@@ -160,15 +199,17 @@
       <input type="text" id="input-manual" placeholder="Aponte o leitor Bluetooth aqui ou digite o código">
       <button class="btn-secondary" onclick="buscarManual()">Buscar</button>
     </div>
-    <button class="btn-secondary" style="margin-top:10px;" onclick="abrirFiltroSala()">🏷️ Ver itens por sala</button>
-    <button class="btn-secondary" onclick="abrirCadastroNovo()">➕ Cadastrar item novo (sem código ainda)</button>
-    <button class="btn-secondary" onclick="abrirProgresso()">📊 Ver progresso da conferência</button>
-    <button class="btn-secondary" onclick="abrirSemCodigo()">🟠 Sem código da prefeitura</button>
-    <button class="btn-secondary" onclick="verCodigosLivres()">🔢 Códigos livres na sequência</button>
-    <button class="btn-secondary" onclick="abrirListaBaixas()">📦 Baixados / transferidos</button>
-    <button class="btn-secondary" onclick="exportarInventario()">📥 Baixar inventário (Excel)</button>
-    <button class="btn-secondary" id="btn-duplicados" style="display:none;" onclick="abrirDuplicados()">🔍 Possíveis duplicados</button>
-    <button class="btn-secondary" id="btn-equipe" style="display:none;" onclick="abrirEquipe()">👥 Equipe (acessos)</button>
+    <div class="menu-botoes">
+      <button class="btn-secondary" onclick="abrirFiltroSala()">🏷️ Ver itens por sala</button>
+      <button class="btn-secondary" onclick="abrirCadastroNovo()">➕ Cadastrar item novo (sem código ainda)</button>
+      <button class="btn-secondary" onclick="abrirProgresso()">📊 Ver progresso da conferência</button>
+      <button class="btn-secondary" onclick="abrirSemCodigo()">🟠 Sem código da prefeitura</button>
+      <button class="btn-secondary" onclick="verCodigosLivres()">🔢 Códigos livres na sequência</button>
+      <button class="btn-secondary" onclick="abrirListaBaixas()">📦 Baixados / transferidos</button>
+      <button class="btn-secondary" onclick="exportarInventario()">📥 Baixar inventário (Excel)</button>
+      <button class="btn-secondary" id="btn-duplicados" style="display:none;" onclick="abrirDuplicados()">🔍 Possíveis duplicados</button>
+      <button class="btn-secondary" id="btn-equipe" style="display:none;" onclick="abrirEquipe()">👥 Equipe (acessos)</button>
+    </div>
 
     <div id="mini-progresso">
       <div class="topo"><span>Conferência da rodada</span><b id="mini-progresso-num">—</b></div>
@@ -243,6 +284,8 @@
 
   <!-- ================= FICHA ================= -->
   <div id="tela-ficha" class="card ficha" style="display:none;">
+   <div class="ficha-colunas">
+    <div class="ficha-col-a">
     <span id="badge-status" class="badge"></span>
     <h2 id="ficha-descricao">—</h2>
     <div class="info-linha">Código: <b id="ficha-id"></b></div>
@@ -251,10 +294,16 @@
     <div class="info-linha">Última conferência: <b id="ficha-conferencia">—</b></div>
     <div id="ficha-aviso-baixa" class="aviso-baixa" style="display:none;"></div>
 
+    <img id="foto-atual" class="foto-preview" style="display:none;">
+
+    <label for="campo-foto">Tirar / anexar foto</label>
+    <input type="file" id="campo-foto" accept="image/*" capture="environment" onchange="previewFoto(event)">
+    <img id="foto-nova-preview" class="foto-preview" style="display:none;">
+    </div>
+
+    <div class="ficha-col-b">
     <label for="campo-codigo-prefeitura">Código da prefeitura (etiqueta oficial)</label>
     <input type="text" id="campo-codigo-prefeitura" placeholder="Ex: 0006249 (mantém os zeros à esquerda)">
-
-    <img id="foto-atual" class="foto-preview" style="display:none;">
 
     <label for="campo-local">Local atual (consultório/sala)</label>
     <select id="campo-local"></select>
@@ -272,10 +321,6 @@
     <label for="campo-obs">Observações</label>
     <textarea id="campo-obs"></textarea>
 
-    <label for="campo-foto">Tirar / anexar foto</label>
-    <input type="file" id="campo-foto" accept="image/*" capture="environment" onchange="previewFoto(event)">
-    <img id="foto-nova-preview" class="foto-preview" style="display:none;">
-
     <button class="btn-primary" style="margin-top:16px;" onclick="salvar()">✅ Salvar e marcar como conferido</button>
     <button class="btn-secondary" onclick="imprimirEtiquetaItem()">🏷️ Imprimir etiqueta deste item</button>
     <button class="btn-baixa" id="btn-ficha-baixa" onclick="abrirBaixaDaFicha()">📤 Registrar baixa / transferência</button>
@@ -287,6 +332,8 @@
       <summary>🕘 Histórico deste item</summary>
       <div id="ficha-hist-lista" style="margin-top:6px;"></div>
     </details>
+    </div>
+   </div>
   </div>
 
   <!-- ================= LISTA DE BAIXAS ================= -->
