@@ -131,6 +131,14 @@
     .legenda .lg-ok::before { background: #A9D08E; }
     .legenda .lg-falta::before { background: #F4B183; }
     .menu-botoes { margin-top: 10px; }
+    #toast-area { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 50;
+      display: flex; flex-direction: column; gap: 6px; align-items: center; pointer-events: none; width: 92%; max-width: 460px; }
+    .toast { background: #1E5634; color: #fff; font-size: 13px; padding: 9px 14px; border-radius: 20px;
+      box-shadow: 0 3px 10px rgba(0,0,0,.25); opacity: 0; transition: opacity .3s; text-align: center; }
+    .toast.vis { opacity: .96; }
+    .ao-vivo { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; color: var(--azul); }
+    .ao-vivo::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: #9aa; }
+    .ao-vivo.on::before { background: #3BB273; box-shadow: 0 0 0 3px rgba(59,178,115,.2); }
     @media (max-width: 420px) {
       .marca-nome { font-size: 18px; }
       .topo-dir span { display: none; }
@@ -217,6 +225,7 @@
   </div>
 </header>
 
+<div id="toast-area"></div>
 <div class="container">
 
   <!-- ================= LOGIN ================= -->
@@ -266,7 +275,8 @@
   <!-- ================= INÍCIO ================= -->
   <div id="tela-inicial" class="card" style="display:none;">
     <div class="usuario-barra">
-      <span>👤 <b id="usuario-nome">—</b> <span id="usuario-papel"></span></span>
+      <span>👤 <b id="usuario-nome">—</b> <span id="usuario-papel"></span>
+        &nbsp;<span id="ao-vivo" class="ao-vivo" title="Atualização automática entre os aparelhos">ao vivo</span></span>
       <button onclick="sair()">Sair</button>
     </div>
     <button class="btn-primary" onclick="iniciarScanner()">📷 Escanear código de barras</button>
@@ -368,6 +378,7 @@
     <div class="info-linha">Valor de aquisição: <b id="ficha-valor"></b></div>
     <div class="info-linha">Última conferência: <b id="ficha-conferencia">—</b></div>
     <div id="ficha-aviso-baixa" class="aviso-baixa" style="display:none;"></div>
+    <div id="ficha-aviso-outro" class="aviso-baixa concluida" style="display:none;"></div>
 
     <img id="foto-atual" class="foto-preview" style="display:none;">
 
@@ -704,12 +715,87 @@ async function iniciarSessao() {
     $('btn-duplicados').style.display = perfil.papel === 'admin' ? 'block' : 'none';
     voltarInicio();
     carregarItens();
+    carregarNomesEquipe();
+    ligarAoVivo();
   } catch (e) {
     mostrar('tela-login');
     msg('status-login', 'Erro ao carregar seu perfil: ' + esc(erroTexto(e)), 'erro');
   } finally {
     iniciando = false;
   }
+}
+
+// ===================================================================
+// AO VIVO: quando alguém salva em outro aparelho, esta tela se atualiza
+// ===================================================================
+let nomesEquipe = {};
+let canalAoVivo = null;
+
+async function carregarNomesEquipe() {
+  const r = await sb.from('perfis').select('id,nome');
+  if (!r.error) r.data.forEach(function (p) { nomesEquipe[p.id] = p.nome; });
+}
+function nomeDe(id) { return id === (perfil && perfil.id) ? 'você' : (nomesEquipe[id] || 'outra pessoa'); }
+
+function toast(texto) {
+  const area = $('toast-area');
+  const t = document.createElement('div');
+  t.className = 'toast'; t.textContent = texto;
+  area.appendChild(t);
+  setTimeout(function () { t.classList.add('vis'); }, 20);
+  setTimeout(function () { t.classList.remove('vis'); setTimeout(function () { t.remove(); }, 400); }, 4200);
+  while (area.children.length > 3) area.firstChild.remove();
+}
+
+function ligarAoVivo() {
+  if (canalAoVivo || !perfil) return;
+  canalAoVivo = sb.channel('unidade-' + perfil.unidade_id)
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'itens', filter: 'unidade_id=eq.' + perfil.unidade_id },
+      function (ev) { aplicarMudancaItem(ev); })
+    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'itens', filter: 'unidade_id=eq.' + perfil.unidade_id },
+      function (ev) { aplicarMudancaItem(ev); })
+    // exclusões (baixa concluída, unificação) não aceitam filtro: chega só o id, e só some se estiver na lista desta unidade
+    .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'itens' },
+      function (ev) { if (cacheItens.some(function (i) { return i.id === (ev.old || {}).id; })) aplicarMudancaItem(ev); })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'baixas', filter: 'unidade_id=eq.' + perfil.unidade_id },
+      function () { if (telaVisivel('tela-baixas')) carregarListaBaixas(); })
+    .subscribe(function (status) {
+      $('ao-vivo').classList.toggle('on', status === 'SUBSCRIBED');
+      $('ao-vivo').title = status === 'SUBSCRIBED' ? 'Ao vivo: as mudanças dos outros aparecem na hora' : 'Reconectando...';
+    });
+}
+
+function telaVisivel(id) { const el = $(id); return el && el.style.display === 'block'; }
+
+function aplicarMudancaItem(ev) {
+  const novo = ev.new || {}, velho = ev.old || {};
+  if (ev.eventType === 'DELETE') {
+    cacheItens = cacheItens.filter(function (i) { return i.id !== velho.id; });
+  } else {
+    const k = cacheItens.findIndex(function (i) { return i.id === novo.id; });
+    if (k >= 0) cacheItens[k] = novo; else cacheItens.push(novo);
+  }
+  const deOutro = ev.eventType !== 'DELETE' && novo.atualizado_por && novo.atualizado_por !== perfil.id;
+  if (deOutro) {
+    toast('🔄 ' + novo.pat + ' ' + (ev.eventType === 'INSERT' ? 'cadastrado' : 'atualizado') + ' por ' + nomeDe(novo.atualizado_por));
+  }
+  // Atualiza a tela que estiver aberta, sem precisar recarregar a página
+  atualizarMiniProgresso();
+  if (telaVisivel('tela-progresso')) renderProgresso();
+  if (telaVisivel('tela-sala') && $('lista-sala').innerHTML) renderListaSala();
+  if (telaVisivel('tela-sem-codigo')) renderSemCodigo();
+  // Ficha aberta do mesmo item, alterada por outra pessoa
+  if (telaVisivel('tela-ficha') && itemAtual && deOutro && novo.id === itemAtual.id) {
+    $('ficha-aviso-outro').innerHTML = '⚠️ <b>' + esc(nomeDe(novo.atualizado_por)) + '</b> acabou de alterar este item. ' +
+      '<button class="btn-secondary" style="width:auto;margin:6px 0 0;padding:6px 12px;font-size:13px;" onclick="recarregarFicha()">Ver a versão nova</button>';
+    $('ficha-aviso-outro').style.display = 'block';
+  }
+}
+
+async function recarregarFicha() {
+  if (!itemAtual) return;
+  const r = await sb.from('itens').select('*').eq('id', itemAtual.id).maybeSingle();
+  if (r.data) { itemAtual = r.data; mostrarFicha(r.data); }
 }
 
 // ===================================================================
@@ -880,6 +966,7 @@ async function mostrarFicha(item) {
   fotoArquivo = null;
   $('campo-foto').value = '';
   $('foto-nova-preview').style.display = 'none';
+  $('ficha-aviso-outro').style.display = 'none';
   $('btn-ficha-unificar').style.display = perfil && perfil.papel === 'admin' ? 'block' : 'none';
   $('ficha-hist').open = false;
   $('ficha-hist-lista').innerHTML = '';
@@ -891,6 +978,12 @@ async function mostrarFicha(item) {
     if (u && itemAtual && itemAtual.pat === item.pat) { foto.src = u; foto.style.display = 'block'; }
   }
   verificarBaixaNaFicha(item.pat);
+  // Pega do banco a hora exata da última alteração (usada para não salvar por cima de outra pessoa)
+  sb.from('itens').select('atualizado_em,atualizado_por').eq('id', item.id).maybeSingle().then(function (r) {
+    if (r.data && itemAtual && itemAtual.id === item.id) {
+      itemAtual.atualizado_em = r.data.atualizado_em; itemAtual.atualizado_por = r.data.atualizado_por;
+    }
+  });
 }
 
 function previewFoto(ev) {
@@ -926,8 +1019,21 @@ async function salvar() {
       msg('status-ficha', 'Enviando a foto...');
       dados.foto_path = await enviarArquivo('itens', itemAtual.pat, fotoArquivo);
     }
-    const r = await sb.from('itens').update(dados).eq('id', itemAtual.id).select().single();
+    // Só grava se ninguém mudou o item desde que esta ficha foi aberta
+    let q = sb.from('itens').update(dados).eq('id', itemAtual.id);
+    if (itemAtual.atualizado_em) q = q.eq('atualizado_em', itemAtual.atualizado_em);
+    const r = await q.select();
     if (r.error) throw r.error;
+    if (!r.data.length) {
+      const atual = await sb.from('itens').select('*').eq('id', itemAtual.id).maybeSingle();
+      if (!atual.data) { msg('status-ficha', 'Este item não está mais na lista (pode ter sido baixado ou unificado).', 'erro'); return; }
+      const quem = nomeDe(atual.data.atualizado_por);
+      itemAtual = atual.data; mostrarFicha(atual.data);
+      msg('status-ficha', '⚠️ <b>' + esc(quem) + '</b> alterou este item enquanto você editava. A ficha foi atualizada com os dados novos: ' +
+        'confira e salve de novo.', 'erro');
+      return;
+    }
+    r.data = r.data[0];
     const i = cacheItens.findIndex(function (x) { return x.id === r.data.id; });
     if (i >= 0) cacheItens[i] = r.data; else cacheItens.push(r.data);
     atualizarMiniProgresso();
@@ -985,6 +1091,9 @@ async function abrirProgresso() {
   $('resumo-progresso').innerHTML = '<div class="status-msg">Carregando...</div>';
   $('lista-progresso').innerHTML = '';
   try { await carregarItens(); } catch (e) {}
+  renderProgresso();
+}
+function renderProgresso() {
   const p = contarProgresso();
   const pct = p.total ? Math.round(p.conferidos / p.total * 100) : 0;
   $('resumo-progresso').innerHTML =
@@ -1025,10 +1134,13 @@ function itensDaSala(sala) {
     .sort(function (a, b) { return String(a.descricao).localeCompare(String(b.descricao), 'pt-BR'); });
 }
 async function listarItensDaSala() {
+  $('lista-sala').innerHTML = '<div class="status-msg">Carregando...</div>';
+  try { await carregarItens(); } catch (e) {}
+  renderListaSala();
+}
+function renderListaSala() {
   const sala = $('select-sala').value;
   const div = $('lista-sala');
-  div.innerHTML = '<div class="status-msg">Carregando...</div>';
-  try { await carregarItens(); } catch (e) {}
   const todos = itensDaSala(sala);
   if (!todos.length) { div.innerHTML = '<div class="status-msg">Nenhum item nessa sala.</div>'; return; }
   const comCod = todos.filter(temCodPref).length;
@@ -1071,6 +1183,11 @@ async function abrirSemCodigo() {
   mostrar('tela-sem-codigo');
   $('lista-sem-codigo').innerHTML = '<div class="status-msg">Carregando...</div>';
   try { await carregarItens(); } catch (e) {}
+  renderSemCodigo();
+}
+function renderSemCodigo() {
+  const abertas = {};
+  document.querySelectorAll('#lista-sem-codigo details[open] summary').forEach(function (s) { abertas[s.dataset.sala] = true; });
   const grupos = gruposSemCodigo();
   const falta = grupos.reduce(function (n, g) { return n + g.itens.length; }, 0);
   const total = cacheItens.length;
@@ -1087,7 +1204,8 @@ async function abrirSemCodigo() {
   grupos.forEach(function (g) {
     const det = document.createElement('details');
     det.style.marginBottom = '8px';
-    det.innerHTML = '<summary style="cursor:pointer;font-weight:600;font-size:14px;color:var(--azul);padding:6px 0;">' +
+    if (abertas[g.sala]) det.open = true;
+    det.innerHTML = '<summary data-sala="' + esc(g.sala) + '" style="cursor:pointer;font-weight:600;font-size:14px;color:var(--azul);padding:6px 0;">' +
       esc(g.sala) + ' <span style="color:#C55A11">(' + g.itens.length + ')</span></summary>';
     g.itens.forEach(function (i) { det.appendChild(linhaItem(i, false)); });
     div.appendChild(det);
@@ -1257,6 +1375,23 @@ async function abrirCadastroNovo() {
 async function salvarNovoItem() {
   const desc = $('novo-descricao').value.trim();
   if (!desc) { msg('status-cadastro', 'Descreva o item antes de salvar.', 'erro'); return; }
+  // Antes de criar, procura item parecido na mesma sala (pode já ter sido cadastrado por outra pessoa)
+  try { await carregarItens(); } catch (e) {}
+  const salaNova = ($('novo-local-novo').value.trim() || $('novo-local').value || '').trim();
+  const dn = normDesc(desc);
+  const parecidos = cacheItens.filter(function (i) {
+    if ((i.local_atual || '').trim() !== salaNova) return false;
+    const di = normDesc(i.descricao);
+    return di && (di === dn || di.indexOf(dn) === 0 || dn.indexOf(di) === 0);
+  });
+  if (parecidos.length && !confirm('Atenção: já existe(m) nesta sala item(ns) com descrição parecida:\n\n' +
+      parecidos.slice(0, 8).map(function (i) {
+        return '• ' + i.pat + ' — ' + i.descricao + (i.atualizado_por ? ' (por ' + nomeDe(i.atualizado_por) + ', ' + dataHoraBR(i.atualizado_em) + ')' : '');
+      }).join('\n') +
+      '\n\nSe for o MESMO bem, cancele e abra o item existente.\nCadastrar um item NOVO mesmo assim?')) {
+    msg('status-cadastro', 'Cadastro cancelado. Confira os itens parecidos na sala.', '');
+    return;
+  }
   msg('status-cadastro', 'Salvando...');
   const r = await sb.rpc('cadastrar_item', {
     p_descricao: desc,
