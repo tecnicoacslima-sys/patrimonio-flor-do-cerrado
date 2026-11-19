@@ -330,6 +330,8 @@
     <select id="novo-codigo"><option value="">Automático (próximo da sequência)</option></select>
     <label for="novo-descricao">Descrição do item</label>
     <input type="text" id="novo-descricao" placeholder="Ex: Armário de aço 2 portas">
+    <label for="novo-caracteristicas">Características (detalhes, não vão na etiqueta)</label>
+    <textarea id="novo-caracteristicas" placeholder="Opcional: medidas, marca, modelo, nº de série, configuração..."></textarea>
     <label for="novo-local">Sala onde está</label>
     <select id="novo-local"></select>
     <input type="text" id="novo-local-novo" placeholder="Nova sala (se não estiver na lista)" style="margin-top:6px;">
@@ -395,6 +397,9 @@
     <div class="ficha-col-b">
     <label for="campo-descricao">Descrição do item</label>
     <input type="text" id="campo-descricao" placeholder="Ex: Cadeira infantil plástica azul">
+
+    <label for="campo-caracteristicas">Características (detalhes, não vão na etiqueta)</label>
+    <textarea id="campo-caracteristicas" placeholder="Medidas, marca, modelo, nº de série, configuração..."></textarea>
 
     <label for="campo-codigo-prefeitura">Código da prefeitura (etiqueta oficial)</label>
     <input type="text" id="campo-codigo-prefeitura" placeholder="Ex: 0006249 (mantém os zeros à esquerda)">
@@ -964,6 +969,7 @@ async function mostrarFicha(item) {
   $('ficha-setor-orig').textContent = item.setor_lista_original || '—';
   $('campo-codigo-prefeitura').value = item.codigo_prefeitura || '';
   $('campo-descricao').value = item.descricao || '';
+  $('campo-caracteristicas').value = item.caracteristicas || '';
   $('ficha-valor').textContent = item.valor_aquisicao
     ? 'R$ ' + item.valor_aquisicao + (item.data_aquisicao_idade ? ' (' + item.data_aquisicao_idade + ')' : '')
     : 'não informado';
@@ -1036,6 +1042,7 @@ async function salvarAgora() {
   const dados = {
     atualizado_dispositivo: DISPOSITIVO + ':' + Date.now().toString(36),
     descricao: descricao,
+    caracteristicas: $('campo-caracteristicas').value.trim() || null,
     local_atual: local,
     situacao: $('campo-situacao').value,
     observacoes: $('campo-obs').value,
@@ -1420,7 +1427,7 @@ async function verCodigosLivres() {
 }
 async function abrirCadastroNovo() {
   mostrar('tela-cadastro');
-  $('novo-descricao').value = ''; $('novo-obs').value = ''; $('novo-local-novo').value = '';
+  $('novo-descricao').value = ''; $('novo-caracteristicas').value = ''; $('novo-obs').value = ''; $('novo-local-novo').value = '';
   $('status-cadastro').innerHTML = '';
   preencherSalas('novo-local');
   const sel = $('novo-codigo');
@@ -1462,6 +1469,11 @@ async function salvarNovoItem() {
     p_pat_desejado: $('novo-codigo').value || null
   });
   if (r.error) { msg('status-cadastro', 'Erro: ' + esc(erroTexto(r.error)), 'erro'); return; }
+  const carNovo = $('novo-caracteristicas').value.trim();
+  if (carNovo) {
+    const rc = await sb.from('itens').update({ caracteristicas: carNovo }).eq('pat', r.data);
+    if (rc.error) { msg('status-cadastro', '✅ Cadastrado como <b>' + esc(r.data) + '</b>, mas as características não foram salvas: ' + esc(erroTexto(rc.error)) + '. Abra a ficha e salve de novo.', 'erro'); return; }
+  }
   msg('status-cadastro', '✅ Cadastrado como <b>' + esc(r.data) + '</b>! Já dá para imprimir a etiqueta pela ficha dele.', 'ok');
   carregarItens().catch(function () {});
   setTimeout(function () { buscar(r.data); }, 1800);
