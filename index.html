@@ -376,6 +376,9 @@
     </div>
 
     <div class="ficha-col-b">
+    <label for="campo-descricao">Descrição do item</label>
+    <input type="text" id="campo-descricao" placeholder="Ex: Cadeira infantil plástica azul">
+
     <label for="campo-codigo-prefeitura">Código da prefeitura (etiqueta oficial)</label>
     <input type="text" id="campo-codigo-prefeitura" placeholder="Ex: 0006249 (mantém os zeros à esquerda)">
 
@@ -856,6 +859,7 @@ async function mostrarFicha(item) {
   $('ficha-id').textContent = item.pat;
   $('ficha-setor-orig').textContent = item.setor_lista_original || '—';
   $('campo-codigo-prefeitura').value = item.codigo_prefeitura || '';
+  $('campo-descricao').value = item.descricao || '';
   $('ficha-valor').textContent = item.valor_aquisicao
     ? 'R$ ' + item.valor_aquisicao + (item.data_aquisicao_idade ? ' (' + item.data_aquisicao_idade + ')' : '')
     : 'não informado';
@@ -900,7 +904,10 @@ function previewFoto(ev) {
 async function salvar() {
   if (!itemAtual) return;
   const local = $('campo-local-novo').value.trim() || $('campo-local').value;
+  const descricao = $('campo-descricao').value.trim().replace(/\s+/g, ' ');
+  if (!descricao) { msg('status-ficha', 'A descrição não pode ficar vazia.', 'erro'); $('campo-descricao').focus(); return; }
   const dados = {
+    descricao: descricao,
     local_atual: local,
     situacao: $('campo-situacao').value,
     observacoes: $('campo-obs').value,
@@ -909,6 +916,9 @@ async function salvar() {
     conferido_nesta_rodada: true,
     data_ultima_conferencia: new Date().toISOString()
   };
+  // Selo da etiqueta acompanha o código da prefeitura
+  if (dados.codigo_prefeitura && !/^COM CÓDIGO/.test(itemAtual.status_etiqueta || '')) dados.status_etiqueta = 'COM CÓDIGO PREFEITURA';
+  if (!dados.codigo_prefeitura && /^COM CÓDIGO/.test(itemAtual.status_etiqueta || '')) dados.status_etiqueta = 'SEM CÓDIGO PREFEITURA (AGUARDANDO)';
   msg('status-ficha', 'Salvando...');
   try {
     if (fotoArquivo) {
