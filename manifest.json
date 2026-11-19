@@ -1,10 +1,10 @@
 {
-  "name": "Patrimônio ESF Flor do Cerrado",
-  "short_name": "Patrimônio ESF",
+  "name": "Patrimônio digital",
+  "short_name": "Patrimônio",
   "start_url": "./index.html",
   "display": "standalone",
-  "background_color": "#f4f6f9",
-  "theme_color": "#0F4B3D",
+  "background_color": "#E9EBEA",
+  "theme_color": "#2A7347",
   "icons": [
     { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
     { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
