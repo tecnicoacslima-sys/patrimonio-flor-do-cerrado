@@ -410,6 +410,7 @@
 
     <label for="campo-situacao">Condição de uso</label>
     <select id="campo-situacao">
+      <option value="">— Escolha a condição —</option>
       <option>BOM</option><option>REGULAR</option><option>RUIM</option><option>QUEBRADO</option>
       <option>RECOLHER PARA BAIXA</option><option>INSERVÍVEL</option>
     </select>
@@ -991,7 +992,10 @@ async function mostrarFicha(item) {
   badge.textContent = item.status_etiqueta || '';
   badge.className = 'badge ' + (item.status_etiqueta === 'COM CÓDIGO PREFEITURA' ? 'badge-ok'
     : /DUVIDOSO/.test(item.status_etiqueta || '') ? 'badge-duvidoso' : 'badge-pendente');
-  $('campo-situacao').value = item.situacao || 'BOM';
+  // Condição: se o valor gravado não está na lista (ex.: "A CONFERIR"), fica em "Escolha a condição"
+  const selSit = $('campo-situacao');
+  selSit.value = item.situacao || '';
+  if (selSit.value !== (item.situacao || '')) selSit.value = '';
   $('campo-idade').value = item.data_aquisicao_idade || '';
   $('campo-obs').value = item.observacoes || '';
   $('campo-local-novo').value = '';
@@ -1049,6 +1053,7 @@ async function salvarAgora() {
   const local = $('campo-local-novo').value.trim() || $('campo-local').value;
   const descricao = $('campo-descricao').value.trim().replace(/\s+/g, ' ');
   if (!descricao) { msg('status-ficha', 'A descrição não pode ficar vazia.', 'erro'); $('campo-descricao').focus(); return; }
+  if (!$('campo-situacao').value) { msg('status-ficha', 'Escolha a condição de uso do item antes de salvar.', 'erro'); $('campo-situacao').focus(); return; }
   const dados = {
     atualizado_dispositivo: DISPOSITIVO + ':' + Date.now().toString(36),
     descricao: descricao,
