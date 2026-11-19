@@ -9,7 +9,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Patrimônio ESF Flor do Cerrado</title>
+  <title>Patrimônio digital</title>
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="icon-192.png">
   <link rel="apple-touch-icon" href="icon-192.png">
@@ -23,20 +23,43 @@
   <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
   <style>
     :root {
-      --azul: #0F4B3D; --azul-escuro: #0B3A2F; --lima: #B7D34A;
+      --azul: #2A7347; --azul-escuro: #1E5634; --lima: #A8CF6A;
       --verde: #2e7d32; --amarelo: #b8860b; --vermelho: #c0392b; --cinza: #666;
     }
     * { box-sizing: border-box; }
-    body { font-family: 'Montserrat', Arial, Helvetica, sans-serif; margin: 0; background: #f4f6f9; color: #222; }
-    header {
-      background: var(--azul); color: #fff; padding: 12px 16px; position: sticky; top: 0; z-index: 10;
-      display: flex; align-items: center; justify-content: center; gap: 10px;
-    }
-    header img { height: 40px; width: auto; }
-    header h1 { font-size: 17px; margin: 0; }
-    header p { font-size: 12px; margin: 2px 0 0; opacity: .85; }
+    body { font-family: 'Montserrat', Arial, Helvetica, sans-serif; margin: 0; background: #E9EBEA; color: #222; }
+
+    /* ===== Topo no estilo "digital": faixa verde fina + barra branca com a logo ===== */
+    .faixa-topo { height: 6px; background: var(--azul); border-bottom: 2px solid #CFE3D6; }
+    header.topo { background: #fff; position: sticky; top: 0; z-index: 10; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+    .topo-int { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 16px; max-width: 1180px; margin: 0 auto; }
+    .marca { display: flex; align-items: center; gap: 9px; text-decoration: none; }
+    .marca svg { width: 34px; height: 34px; flex: none; }
+    .marca-nome { font-size: 21px; color: var(--azul); letter-spacing: -0.3px; white-space: nowrap; }
+    .marca-nome b { font-weight: 700; }
+    .marca-nome span { font-weight: 400; color: #1f2d24; }
+    .topo-dir { text-align: right; line-height: 1.25; }
+    .topo-dir b { display: block; font-size: 11px; letter-spacing: .4px; color: #1f2d24; }
+    .topo-dir span { font-size: 10px; color: #555; }
+
     .container { padding: 16px; max-width: 480px; margin: 0 auto; }
-    .card { background: #fff; border-radius: 10px; padding: 16px; box-shadow: 0 1px 3px rgba(0,0,0,.12); margin-bottom: 16px; }
+    .card { background: #fff; border-radius: 4px; padding: 16px; box-shadow: 0 2px 10px rgba(0,0,0,.10); margin-bottom: 16px; }
+
+    /* ===== Login em cartão, com as faixas suaves ao fundo ===== */
+    #tela-login, #tela-nova-senha, #tela-sem-acesso { padding: 0; overflow: hidden; margin-top: 18px; }
+    .login-cab { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 14px 18px;
+      background: linear-gradient(#fff, #F6F7F6); border-bottom: 1px solid #ECEDEC; }
+    .login-corpo { padding: 18px; position: relative;
+      background:
+        linear-gradient(118deg, transparent 52%, rgba(214,236,222,.55) 52%, rgba(214,236,222,.55) 63%, transparent 63%),
+        linear-gradient(162deg, transparent 58%, rgba(236,232,206,.55) 58%, rgba(236,232,206,.55) 66%, transparent 66%),
+        linear-gradient(135deg, #fff 45%, #EAF5EE 100%); }
+    .login-corpo h2.tit { color: #1f2d24; font-size: 15px; }
+    .login-corpo .btn-primary { text-transform: uppercase; letter-spacing: .5px; font-weight: 700; font-size: 13px; }
+    .rodape-app { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap;
+      font-size: 10px; color: #555; margin-top: 10px; }
+    .rodape-app .esq { display: flex; align-items: center; gap: 8px; line-height: 1.4; }
+    .rodape-app .esq svg { width: 22px; height: 22px; }
     h2.tit { font-size: 16px; color: var(--azul); margin: 0 0 10px; }
     button { font-family: inherit; font-size: 15px; border: none; border-radius: 8px; padding: 13px 16px; cursor: pointer; width: 100%; }
     .btn-primary { background: var(--azul); color: #fff; }
@@ -103,16 +126,27 @@
     .legenda .lg-ok::before { background: #A9D08E; }
     .legenda .lg-falta::before { background: #F4B183; }
     .menu-botoes { margin-top: 10px; }
+    @media (max-width: 420px) {
+      .marca-nome { font-size: 18px; }
+      .topo-dir span { display: none; }
+      .topo-dir b { font-size: 9.5px; }
+      .login-cab .topo-dir { display: none; }
+    }
 
     /* ===== COMPUTADOR / TELA LARGA =====
        No celular nada muda. A partir de 900px, vira layout de site. */
     @media (min-width: 900px) {
-      header { justify-content: flex-start; padding: 12px 32px; }
-      header img { height: 46px; }
-      header h1 { font-size: 20px; }
+      .topo-int { padding: 12px 32px; }
+      .marca svg { width: 40px; height: 40px; }
+      .marca-nome { font-size: 25px; }
+      .topo-dir b { font-size: 12px; }
+      .topo-dir span { font-size: 11px; }
       .container { max-width: 1180px; padding: 24px 32px; }
       .card { padding: 24px 28px; }
-      #tela-login, #tela-nova-senha, #tela-sem-acesso { max-width: 440px; margin: 40px auto 16px; }
+      #tela-login, #tela-nova-senha, #tela-sem-acesso { max-width: 720px; margin: 70px auto 16px; }
+      .login-corpo { padding: 26px 24px 34px; min-height: 230px; }
+      .login-campos { max-width: 340px; }
+      .container:has(#tela-login[style*="block"]) .rodape-app, .container:has(#tela-nova-senha[style*="block"]) .rodape-app { max-width: 720px; margin-left: auto; margin-right: auto; }
       /* Início: busca em destaque e botões em grade */
       #tela-inicial .usuario-barra { font-size: 13px; }
       #tela-inicial > .btn-primary { max-width: 420px; }
@@ -149,11 +183,26 @@
 </head>
 <body>
 
-<header>
-  <img src="logo-nova-mutum.png" alt="Brasão Nova Mutum">
-  <div>
-    <h1>Patrimônio ESF Flor do Cerrado</h1>
-    <p>Leitor de código PAT-XXXX</p>
+<!-- Logo "Patrimônio digital": monograma P em quadrado verde, com etiqueta/check -->
+<svg style="display:none" xmlns="http://www.w3.org/2000/svg">
+  <symbol id="logo-pd" viewBox="0 0 64 64">
+    <rect x="2" y="2" width="60" height="60" rx="14" fill="#2A7347"/>
+    <path d="M22 50V14h14.5c8.6 0 14 4.7 14 12.2S45.1 38.4 36.5 38.4H30.2V50z M30.2 31.4h5.6c3.9 0 6.3-1.9 6.3-5.2s-2.4-5.2-6.3-5.2h-5.6z" fill="#fff"/>
+    <path d="M33 46.5l5.2 5.2L50.5 39.4" fill="none" stroke="#C9E27A" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  </symbol>
+</svg>
+
+<div class="faixa-topo"></div>
+<header class="topo">
+  <div class="topo-int">
+    <div class="marca">
+      <svg aria-hidden="true"><use href="#logo-pd"/></svg>
+      <div class="marca-nome"><b>Patrimônio</b> <span>digital</span></div>
+    </div>
+    <div class="topo-dir">
+      <b>CONTROLE DE PATRIMÔNIO</b>
+      <span id="topo-unidade">Conferência · Etiquetas · Baixas</span>
+    </div>
   </div>
 </header>
 
@@ -161,31 +210,46 @@
 
   <!-- ================= LOGIN ================= -->
   <div id="tela-login" class="card" style="display:none;">
-    <h2 class="tit">Entrar</h2>
-    <label for="login-email">E-mail</label>
-    <input type="email" id="login-email" autocomplete="username" placeholder="seu@email.com">
-    <label for="login-senha">Senha</label>
-    <input type="password" id="login-senha" autocomplete="current-password">
-    <button class="btn-primary" style="margin-top:14px;" onclick="entrar()">Entrar</button>
-    <button class="btn-secondary" onclick="criarSenha()">Primeiro acesso: criar minha senha</button>
-    <button class="btn-link" onclick="esqueciSenha()">Esqueci minha senha</button>
-    <div id="status-login" class="status-msg"></div>
+    <div class="login-cab">
+      <div class="marca">
+        <svg aria-hidden="true"><use href="#logo-pd"/></svg>
+        <div class="marca-nome"><b>Patrimônio</b> <span>digital</span></div>
+      </div>
+      <div class="topo-dir"><b>CONTROLE DE PATRIMÔNIO</b><span>Conferência · Etiquetas · Baixas</span></div>
+    </div>
+    <div class="login-corpo">
+      <h2 class="tit">🔒 Acessar o sistema:</h2>
+      <div class="login-campos">
+        <label for="login-email">E-mail</label>
+        <input type="email" id="login-email" autocomplete="username" placeholder="seu@email.com">
+        <label for="login-senha">Senha</label>
+        <input type="password" id="login-senha" autocomplete="current-password">
+        <button class="btn-primary" style="margin-top:14px;" onclick="entrar()">Entrar</button>
+        <button class="btn-secondary" onclick="criarSenha()">Primeiro acesso: criar minha senha</button>
+        <button class="btn-link" onclick="esqueciSenha()">Esqueci minha senha</button>
+        <div id="status-login" class="status-msg"></div>
+      </div>
+    </div>
   </div>
 
   <!-- ================= NOVA SENHA (link do e-mail) ================= -->
   <div id="tela-nova-senha" class="card" style="display:none;">
-    <h2 class="tit">Criar nova senha</h2>
+    <div class="login-corpo"><div class="login-campos">
+    <h2 class="tit">🔒 Criar nova senha</h2>
     <label for="nova-senha">Nova senha (mínimo 6 caracteres)</label>
     <input type="password" id="nova-senha" autocomplete="new-password">
     <button class="btn-primary" style="margin-top:14px;" onclick="salvarNovaSenha()">Salvar nova senha</button>
     <div id="status-nova-senha" class="status-msg"></div>
+    </div></div>
   </div>
 
   <!-- ================= SEM ACESSO ================= -->
   <div id="tela-sem-acesso" class="card" style="display:none;">
+   <div class="login-corpo">
     <h2 class="tit">Acesso não liberado</h2>
     <p style="font-size:14px;">Seu e-mail ainda não foi cadastrado pela administração da unidade, ou o acesso foi desativado. Peça para um administrador te convidar em <b>👥 Equipe</b>.</p>
     <button class="btn-secondary" onclick="sair()">Sair</button>
+   </div>
   </div>
 
   <!-- ================= INÍCIO ================= -->
@@ -468,7 +532,11 @@
     <button class="btn-secondary" style="margin-top:14px;" onclick="voltarInicio()">Voltar</button>
   </div>
 
-  <div class="rodape">ESF Flor do Cerrado — Nova Mutum/MT<br>Desenvolvido por antonioresolve.com</div>
+  <div class="rodape-app">
+    <div class="esq"><svg aria-hidden="true"><use href="#logo-pd"/></svg>
+      <span>© 2026 Patrimônio digital. Todos os direitos reservados.<br><span id="rodape-unidade">ESF Flor do Cerrado — Nova Mutum/MT</span></span></div>
+    <div>🔒 Privacidade e LGPD &nbsp; · &nbsp; Desenvolvido por antonioresolve.com</div>
+  </div>
 </div>
 
 <script>
@@ -495,6 +563,9 @@ let iniciando = false;
 const TELAS = ['tela-login', 'tela-nova-senha', 'tela-sem-acesso', 'tela-inicial', 'video-wrap', 'tela-progresso',
   'tela-cadastro', 'tela-sala', 'tela-ficha', 'tela-baixas', 'tela-baixa', 'tela-equipe', 'tela-duplicados', 'tela-unificar', 'tela-sem-codigo'];
 function mostrar(id) {
+  // Nas telas de acesso, como no APAC digital: só a faixa verde, sem a barra com a logo
+  document.querySelector('header.topo').style.display =
+    ['tela-login', 'tela-nova-senha', 'tela-sem-acesso'].indexOf(id) >= 0 ? 'none' : '';
   TELAS.forEach(function (t) { document.getElementById(t).style.display = (t === id ? 'block' : 'none'); });
   window.scrollTo(0, 0);
 }
@@ -607,6 +678,7 @@ async function iniciarSessao() {
       unidade_id: r.data.unidade_id, unidade_nome: r.data.unidades ? r.data.unidades.nome : ''
     };
     $('usuario-nome').textContent = perfil.nome;
+    $('topo-unidade').textContent = (perfil.unidade_nome || 'ESF Flor do Cerrado') + ' · Nova Mutum/MT';
     $('usuario-papel').textContent = perfil.papel === 'admin' ? '(administrador)' : '';
     $('btn-equipe').style.display = perfil.papel === 'admin' ? 'block' : 'none';
     $('btn-duplicados').style.display = perfil.papel === 'admin' ? 'block' : 'none';
