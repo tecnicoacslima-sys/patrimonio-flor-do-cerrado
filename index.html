@@ -39,6 +39,10 @@
     .marca-nome b { font-weight: 700; }
     .marca-nome span { font-weight: 400; color: #1f2d24; }
     .topo-dir { text-align: right; line-height: 1.25; }
+    .topo-acoes { display: flex; align-items: center; gap: 14px; }
+    .btn-inicio { width: auto; margin: 0; padding: 8px 14px; font-size: 14px; font-weight: 600; background: #EEF5F0;
+      color: var(--azul); border: 1px solid #CFE3D6; border-radius: 20px; white-space: nowrap; align-items: center; gap: 6px; }
+    .btn-inicio:hover { background: #E0EEE5; }
     .topo-dir b { display: block; font-size: 11px; letter-spacing: .4px; color: #1f2d24; }
     .topo-dir span { font-size: 10px; color: #555; }
 
@@ -131,6 +135,9 @@
       .topo-dir span { display: none; }
       .topo-dir b { font-size: 9.5px; }
       .login-cab .topo-dir { display: none; }
+      .topo-acoes .topo-dir { display: none; }
+      .btn-inicio span { display: none; }
+      .btn-inicio { padding: 8px 12px; font-size: 18px; }
     }
 
     /* ===== COMPUTADOR / TELA LARGA =====
@@ -195,13 +202,16 @@
 <div class="faixa-topo"></div>
 <header class="topo">
   <div class="topo-int">
-    <div class="marca">
+    <div class="marca" style="cursor:pointer" onclick="irInicio()" title="Voltar ao início">
       <svg aria-hidden="true"><use href="#logo-pd"/></svg>
       <div class="marca-nome"><b>Patrimônio</b> <span>digital</span></div>
     </div>
-    <div class="topo-dir">
-      <b>CONTROLE DE PATRIMÔNIO</b>
-      <span id="topo-unidade">Conferência · Etiquetas · Baixas</span>
+    <div class="topo-acoes">
+      <button id="btn-inicio" class="btn-inicio" style="display:none" onclick="irInicio()" title="Voltar ao início">🏠 <span>Início</span></button>
+      <div class="topo-dir">
+        <b>CONTROLE DE PATRIMÔNIO</b>
+        <span id="topo-unidade">Conferência · Etiquetas · Baixas</span>
+      </div>
     </div>
   </div>
 </header>
@@ -502,8 +512,12 @@
       <input type="text" id="unif-motivo" placeholder="Ex: mesmo aparelho com duas etiquetas">
       <button class="btn-primary" style="margin-top:14px;" onclick="confirmarUnificacao()">🔗 Unificar</button>
     </div>
-    <button class="btn-secondary" onclick="voltarInicio()">Cancelar</button>
+    <button class="btn-secondary" id="unif-cancelar" onclick="voltarUnificacao()">Cancelar</button>
     <div id="status-unificar" class="status-msg"></div>
+    <div id="unif-depois" style="display:none;">
+      <button class="btn-primary" id="unif-voltar-dup" onclick="abrirDuplicados()">🔍 Voltar aos duplicados (próximo caso)</button>
+      <button class="btn-secondary" onclick="irInicio()">🏠 Início</button>
+    </div>
   </div>
 
   <!-- ================= EQUIPE (admin) ================= -->
@@ -563,6 +577,8 @@ let iniciando = false;
 const TELAS = ['tela-login', 'tela-nova-senha', 'tela-sem-acesso', 'tela-inicial', 'video-wrap', 'tela-progresso',
   'tela-cadastro', 'tela-sala', 'tela-ficha', 'tela-baixas', 'tela-baixa', 'tela-equipe', 'tela-duplicados', 'tela-unificar', 'tela-sem-codigo'];
 function mostrar(id) {
+  const bi = document.getElementById('btn-inicio');
+  if (bi) bi.style.display = (perfil && id !== 'tela-inicial') ? 'inline-flex' : 'none';
   // Nas telas de acesso, como no APAC digital: só a faixa verde, sem a barra com a logo
   document.querySelector('header.topo').style.display =
     ['tela-login', 'tela-nova-senha', 'tela-sem-acesso'].indexOf(id) >= 0 ? 'none' : '';
@@ -1503,6 +1519,15 @@ async function carregarListaBaixas() {
 // DUPLICADOS E UNIFICAÇÃO (só administradores)
 // ===================================================================
 let unifA = null, unifB = null, unifManter = 'A';
+let unifOrigem = 'inicio'; // de onde a pessoa veio: 'duplicados' ou 'ficha'
+
+function irInicio() { if (perfil) voltarInicio(); }
+function voltarUnificacao() { if (unifOrigem === 'duplicados') abrirDuplicados(); else voltarInicio(); }
+function prepararTelaUnificar() {
+  $('unif-depois').style.display = 'none';
+  $('unif-cancelar').style.display = 'block';
+  $('unif-voltar-dup').textContent = unifOrigem === 'duplicados' ? '🔍 Voltar aos duplicados (próximo caso)' : '🔍 Ver possíveis duplicados';
+}
 
 function semZeros(c) { return String(c || '').trim().replace(/^0+/, ''); }
 function normDesc(d) {
@@ -1563,6 +1588,7 @@ function htmlGrupo(g, id) {
     '<button class="btn-secondary" style="padding:8px;font-size:13px;" onclick="compararGrupo(\'' + id + '\')">Comparar os 2 marcados</button></div>';
 }
 function compararGrupo(id) {
+  unifOrigem = 'duplicados';
   const marcados = Array.from(document.querySelectorAll('#grp-' + id + ' input:checked')).map(function (c) { return c.value; });
   if (marcados.length !== 2) { alert('Marque exatamente 2 itens para comparar.'); return; }
   abrirComparacao(marcados[0], marcados[1]);
@@ -1570,8 +1596,10 @@ function compararGrupo(id) {
 
 function unificarDaFicha() {
   if (!itemAtual) return;
+  unifOrigem = 'ficha';
   unifA = itemAtual; unifB = null;
   mostrar('tela-unificar');
+  prepararTelaUnificar();
   $('unif-escolha').style.display = 'block';
   $('unif-outro').value = '';
   $('unif-comparacao').innerHTML = '<div class="info-linha">Item atual: <b>' + esc(unifA.pat) + '</b> — ' + esc(unifA.descricao) +
@@ -1594,6 +1622,7 @@ async function compararComOutro() {
 
 async function abrirComparacao(patA, patB) {
   mostrar('tela-unificar');
+  prepararTelaUnificar();
   $('unif-escolha').style.display = 'none';
   $('unif-acoes').style.display = 'none';
   $('status-unificar').innerHTML = '';
@@ -1654,6 +1683,8 @@ async function confirmarUnificacao() {
   });
   if (r.error) { msg('status-unificar', 'Erro: ' + esc(erroTexto(r.error)), 'erro'); return; }
   $('unif-acoes').style.display = 'none';
+  $('unif-cancelar').style.display = 'none';
+  $('unif-depois').style.display = 'block';
   msg('status-unificar', '✅ Unificado! Ficou ' + esc(r.data.mantido) + '. ' +
     (r.data.codigo_liberado ? 'O código ' + esc(r.data.removido) + ' foi liberado para reaproveitar.'
       : 'O código ' + esc(r.data.removido) + ' ficou bloqueado; quem bipar a etiqueta antiga cai em ' + esc(r.data.mantido) + '.'), 'ok');
