@@ -410,7 +410,7 @@
     <label for="campo-obs">Observações</label>
     <textarea id="campo-obs"></textarea>
 
-    <button class="btn-primary" style="margin-top:16px;" onclick="salvar()">✅ Salvar e marcar como conferido</button>
+    <button class="btn-primary" id="btn-salvar" style="margin-top:16px;" onclick="salvar()">✅ Salvar e marcar como conferido</button>
     <button class="btn-secondary" onclick="imprimirEtiquetaItem()">🏷️ Imprimir etiqueta deste item</button>
     <button class="btn-baixa" id="btn-ficha-baixa" onclick="abrirBaixaDaFicha()">📤 Registrar baixa / transferência</button>
     <button class="btn-secondary" id="btn-ficha-unificar" style="display:none;" onclick="unificarDaFicha()">🔗 Este item está duplicado? Unificar</button>
@@ -729,6 +729,8 @@ async function iniciarSessao() {
 // AO VIVO: quando alguém salva em outro aparelho, esta tela se atualiza
 // ===================================================================
 let nomesEquipe = {};
+// Identifica ESTE aparelho/aba. Assim o app distingue "eu mesmo, aqui" de "eu mesmo, em outro aparelho"
+const DISPOSITIVO = 'd' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 let canalAoVivo = null;
 
 async function carregarNomesEquipe() {
@@ -736,6 +738,12 @@ async function carregarNomesEquipe() {
   if (!r.error) r.data.forEach(function (p) { nomesEquipe[p.id] = p.nome; });
 }
 function nomeDe(id) { return id === (perfil && perfil.id) ? 'você' : (nomesEquipe[id] || 'outra pessoa'); }
+// "Coordenadora" / "Você, em outro aparelho," — para os avisos
+function desteAparelho(item) { return !!item && String(item.atualizado_dispositivo || '').split(':')[0] === DISPOSITIVO; }
+function quemAlterou(item) {
+  if (item.atualizado_por === (perfil && perfil.id)) return 'Você, em outro aparelho,';
+  return nomesEquipe[item.atualizado_por] || 'Outra pessoa';
+}
 
 function toast(texto) {
   const area = $('toast-area');
@@ -775,9 +783,11 @@ function aplicarMudancaItem(ev) {
     const k = cacheItens.findIndex(function (i) { return i.id === novo.id; });
     if (k >= 0) cacheItens[k] = novo; else cacheItens.push(novo);
   }
-  const deOutro = ev.eventType !== 'DELETE' && novo.atualizado_por && novo.atualizado_por !== perfil.id;
+  const deOutro = ev.eventType !== 'DELETE' && !desteAparelho(novo) &&
+    (novo.atualizado_por !== perfil.id || !!novo.atualizado_dispositivo);
   if (deOutro) {
-    toast('🔄 ' + novo.pat + ' ' + (ev.eventType === 'INSERT' ? 'cadastrado' : 'atualizado') + ' por ' + nomeDe(novo.atualizado_por));
+    const quem = novo.atualizado_por === perfil.id ? 'você (outro aparelho)' : nomeDe(novo.atualizado_por);
+    toast('🔄 ' + novo.pat + ' ' + (ev.eventType === 'INSERT' ? 'cadastrado' : 'atualizado') + ' por ' + quem);
   }
   // Atualiza a tela que estiver aberta, sem precisar recarregar a página
   atualizarMiniProgresso();
@@ -786,7 +796,7 @@ function aplicarMudancaItem(ev) {
   if (telaVisivel('tela-sem-codigo')) renderSemCodigo();
   // Ficha aberta do mesmo item, alterada por outra pessoa
   if (telaVisivel('tela-ficha') && itemAtual && deOutro && novo.id === itemAtual.id) {
-    $('ficha-aviso-outro').innerHTML = '⚠️ <b>' + esc(nomeDe(novo.atualizado_por)) + '</b> acabou de alterar este item. ' +
+    $('ficha-aviso-outro').innerHTML = '⚠️ <b>' + esc(quemAlterou(novo)) + '</b> acabou de alterar este item. ' +
       '<button class="btn-secondary" style="width:auto;margin:6px 0 0;padding:6px 12px;font-size:13px;" onclick="recarregarFicha()">Ver a versão nova</button>';
     $('ficha-aviso-outro').style.display = 'block';
   }
@@ -979,9 +989,10 @@ async function mostrarFicha(item) {
   }
   verificarBaixaNaFicha(item.pat);
   // Pega do banco a hora exata da última alteração (usada para não salvar por cima de outra pessoa)
-  sb.from('itens').select('atualizado_em,atualizado_por').eq('id', item.id).maybeSingle().then(function (r) {
+  sb.from('itens').select('atualizado_em,atualizado_por,atualizado_dispositivo').eq('id', item.id).maybeSingle().then(function (r) {
     if (r.data && itemAtual && itemAtual.id === item.id) {
       itemAtual.atualizado_em = r.data.atualizado_em; itemAtual.atualizado_por = r.data.atualizado_por;
+      itemAtual.atualizado_dispositivo = r.data.atualizado_dispositivo;
     }
   });
 }
@@ -995,12 +1006,25 @@ function previewFoto(ev) {
   img.style.display = 'block';
 }
 
+let salvando = false;
 async function salvar() {
-  if (!itemAtual) return;
+  if (!itemAtual || salvando) return;   // ignora o segundo toque enquanto salva
+  salvando = true;
+  const btn = $('btn-salvar');
+  btn.disabled = true; btn.textContent = '⏳ Salvando...';
+  try { await salvarAgora(); }
+  finally {
+    salvando = false;
+    btn.disabled = false; btn.textContent = '✅ Salvar e marcar como conferido';
+  }
+}
+
+async function salvarAgora() {
   const local = $('campo-local-novo').value.trim() || $('campo-local').value;
   const descricao = $('campo-descricao').value.trim().replace(/\s+/g, ' ');
   if (!descricao) { msg('status-ficha', 'A descrição não pode ficar vazia.', 'erro'); $('campo-descricao').focus(); return; }
   const dados = {
+    atualizado_dispositivo: DISPOSITIVO + ':' + Date.now().toString(36),
     descricao: descricao,
     local_atual: local,
     situacao: $('campo-situacao').value,
@@ -1022,18 +1046,28 @@ async function salvar() {
     // Só grava se ninguém mudou o item desde que esta ficha foi aberta
     let q = sb.from('itens').update(dados).eq('id', itemAtual.id);
     if (itemAtual.atualizado_em) q = q.eq('atualizado_em', itemAtual.atualizado_em);
-    const r = await q.select();
+    let r = await q.select();
     if (r.error) throw r.error;
     if (!r.data.length) {
       const atual = await sb.from('itens').select('*').eq('id', itemAtual.id).maybeSingle();
       if (!atual.data) { msg('status-ficha', 'Este item não está mais na lista (pode ter sido baixado ou unificado).', 'erro'); return; }
-      const quem = nomeDe(atual.data.atualizado_por);
+      if (desteAparelho(atual.data)) {
+        // A última alteração veio DESTE MESMO aparelho (ex.: toque duplo): grava direto, sem alarme falso
+        r = await sb.from('itens').update(dados).eq('id', itemAtual.id).select();
+        if (r.error) throw r.error;
+      }
+    }
+    if (!r.data.length) {
+      const atual = await sb.from('itens').select('*').eq('id', itemAtual.id).maybeSingle();
+      if (!atual.data) { msg('status-ficha', 'Este item não está mais na lista (pode ter sido baixado ou unificado).', 'erro'); return; }
+      const quem = quemAlterou(atual.data);
       itemAtual = atual.data; mostrarFicha(atual.data);
-      msg('status-ficha', '⚠️ <b>' + esc(quem) + '</b> alterou este item enquanto você editava. A ficha foi atualizada com os dados novos: ' +
+      msg('status-ficha', '⚠️ <b>' + esc(quem) + '</b> alterou este item enquanto você editava aqui. A ficha foi atualizada com os dados novos: ' +
         'confira e salve de novo.', 'erro');
       return;
     }
     r.data = r.data[0];
+    itemAtual = r.data;   // a ficha passa a conhecer a versão que acabou de ser salva
     const i = cacheItens.findIndex(function (x) { return x.id === r.data.id; });
     if (i >= 0) cacheItens[i] = r.data; else cacheItens.push(r.data);
     atualizarMiniProgresso();
