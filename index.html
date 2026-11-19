@@ -99,6 +99,9 @@
     .item-lista .nome { font-size: 14px; }
     .tag { font-size: 10px; padding: 2px 7px; border-radius: 10px; font-weight: bold; white-space: nowrap; }
     .tag-ok { background: #E2EFDA; color: var(--verde); }
+    .lado-conf { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; flex-shrink: 0; }
+    .data-conf { font-size: 11px; color: #555; white-space: nowrap; }
+    .data-conf.antiga { color: #C55A11; font-weight: bold; }
     .tag-pendente { background: #FFF2CC; color: var(--amarelo); }
     .tag-baixa-aguard { background: #FFF2CC; color: var(--amarelo); }
     .tag-baixa-ok { background: #fdecea; color: var(--vermelho); }
@@ -1187,6 +1190,16 @@ function renderListaSala() {
   itens.forEach(function (item) { div.appendChild(linhaItem(item, true)); });
 }
 
+// Laranja quando a última conferência é de antes do mês atual (ou nunca houve)
+function conferenciaAntiga(v) {
+  if (!v) return true;
+  const s = String(v);
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  const d = m ? new Date(+m[1], +m[2] - 1, +m[3]) : new Date(s);
+  if (isNaN(d)) return false;
+  const hoje = new Date();
+  return d.getFullYear() * 12 + d.getMonth() < hoje.getFullYear() * 12 + hoje.getMonth();
+}
 function temCodPref(i) { return !!String(i.codigo_prefeitura || '').trim(); }
 
 // Linha de item colorida: verde = tem código da prefeitura, laranja = só PAT
@@ -1196,8 +1209,10 @@ function linhaItem(item, mostrarConferido) {
   row.className = 'item-lista ' + (ok ? 'cod-ok' : 'cod-falta');
   row.innerHTML = '<span class="nome">' + esc(item.descricao) + ' <span style="color:#777">(' + esc(item.pat) + ')</span>' +
     '<br><span style="font-size:11px;color:#555">' + (ok ? 'Pref. ' + esc(item.codigo_prefeitura) : 'sem código da prefeitura') + '</span></span>' +
-    (mostrarConferido ? '<span class="tag ' + (item.conferido_nesta_rodada ? 'tag-ok' : 'tag-pendente') + '" style="background:#fff">' +
-      (item.conferido_nesta_rodada ? 'conferido' : 'pendente') + '</span>' : '');
+    (mostrarConferido ? '<span class="lado-conf"><span class="tag ' + (item.conferido_nesta_rodada ? 'tag-ok' : 'tag-pendente') + '" style="background:#fff">' +
+      (item.conferido_nesta_rodada ? 'conferido' : 'pendente') + '</span>' +
+      '<span class="data-conf' + (conferenciaAntiga(item.data_ultima_conferencia) ? ' antiga' : '') + '">' +
+      (dataBR(item.data_ultima_conferencia) ? '📅 ' + dataBR(item.data_ultima_conferencia) : 'nunca conferido') + '</span></span>' : '');
   row.onclick = function () { itemAtual = item; mostrarFicha(item); };
   return row;
 }
