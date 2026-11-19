@@ -1573,7 +1573,56 @@ async function abrirDuplicados() {
   h += '<h2 class="tit" style="font-size:14px;margin-top:18px;">2) Mesma descrição na mesma sala (' + gruposDesc.length + ') — conferir</h2>';
   h += gruposDesc.length ? gruposDesc.map(function (g, k) { return htmlGrupo(g, 'd' + k); }).join('')
     : '<div class="info-linha">Nenhum caso. ✅</div>';
+  h += '<h2 class="tit" style="font-size:14px;margin-top:22px;">3) Unificações já feitas</h2><div id="lista-unificacoes"><div class="info-linha">Carregando...</div></div>';
   div.innerHTML = h;
+  carregarUnificacoesFeitas();
+}
+
+async function carregarUnificacoesFeitas() {
+  const div = $('lista-unificacoes');
+  if (!div) return;
+  const r = await sb.from('unificacoes').select('*').is('desfeita_em', null).order('criado_em', { ascending: false }).limit(100);
+  if (r.error) { div.innerHTML = '<div class="status-msg erro">' + esc(erroTexto(r.error)) + '</div>'; return; }
+  if (!r.data.length) { div.innerHTML = '<div class="info-linha">Nenhuma unificação feita ainda.</div>'; return; }
+  div.innerHTML = r.data.map(function (u) {
+    return '<div class="pessoa" id="unif-' + u.id + '"><div style="font-size:13px;"><b>' + esc(u.pat_removido) + '</b> → unificado em <b>' +
+      esc(u.pat_mantido) + '</b> — ' + esc(u.descricao_removido || '') + '</div>' +
+      '<div class="info-linha" style="font-size:11px;">' + esc(dataHoraBR(u.criado_em)) + ' · ' + esc(u.usuario_nome || '—') +
+      (u.codigo_prefeitura_removido ? ' · Pref. ' + esc(u.codigo_prefeitura_removido) : '') +
+      (u.codigo_liberado ? ' · código liberado' : '') + (u.motivo ? ' · ' + esc(u.motivo) : '') + '</div>' +
+      '<button class="btn-secondary" style="padding:8px;font-size:13px;" onclick="abrirDesfazer(' + u.id + ')">↩️ Desfazer esta unificação</button>' +
+      '<div id="desf-' + u.id + '"></div></div>';
+  }).join('');
+  window._unificacoes = r.data;
+}
+
+function abrirDesfazer(id) {
+  const u = (window._unificacoes || []).find(function (x) { return x.id === id; });
+  if (!u) return;
+  const area = $('desf-' + id);
+  if (area.innerHTML) { area.innerHTML = ''; return; }
+  area.innerHTML = '<div class="aviso-baixa" style="margin-top:8px;">' +
+    '<b>' + esc(u.pat_removido) + '</b> volta para a lista, separado de <b>' + esc(u.pat_mantido) + '</b>.' +
+    (u.codigo_prefeitura_removido
+      ? '<label for="desf-cod-' + id + '">Código da prefeitura do item que volta (' + esc(u.pat_removido) + ')</label>' +
+        '<select id="desf-cod-' + id + '"><option value="manter">Volta com o código ' + esc(u.codigo_prefeitura_removido) + '</option>' +
+        '<option value="aguardando">Volta SEM código — aguardando etiqueta da prefeitura</option></select>'
+      : '<input type="hidden" id="desf-cod-' + id + '" value="manter">') +
+    '<label for="desf-mot-' + id + '">Motivo</label><input type="text" id="desf-mot-' + id + '" placeholder="Ex: eram itens diferentes">' +
+    '<button class="btn-primary" style="margin-top:10px;" onclick="confirmarDesfazer(' + id + ')">↩️ Confirmar: desfazer</button>' +
+    '<div id="desf-st-' + id + '" class="status-msg"></div></div>';
+}
+
+async function confirmarDesfazer(id) {
+  const u = (window._unificacoes || []).find(function (x) { return x.id === id; });
+  if (!u || !confirm('Desfazer a unificação?\n\n' + u.pat_removido + ' volta para a lista, separado de ' + u.pat_mantido + '.')) return;
+  const st = 'desf-st-' + id;
+  msg(st, 'Desfazendo...');
+  const r = await sb.rpc('desfazer_unificacao', { p_id: id, p_codigo_no_que_volta: $('desf-cod-' + id).value, p_motivo: $('desf-mot-' + id).value.trim() });
+  if (r.error) { msg(st, 'Erro: ' + esc(erroTexto(r.error)), 'erro'); return; }
+  msg(st, '✅ Desfeito! ' + esc(r.data.voltou) + ' voltou para a lista.', 'ok');
+  await carregarItens().catch(function () {});
+  setTimeout(abrirDuplicados, 1500);
 }
 function htmlGrupo(g, id) {
   const marcar = g.length === 2;
@@ -1693,7 +1742,7 @@ async function confirmarUnificacao() {
 
 // Quem bipar a etiqueta de um item que foi unificado é levado ao item que ficou
 async function mostrarSeFoiUnificado(pat, bruto) {
-  const r = await sb.from('unificacoes').select('*')
+  const r = await sb.from('unificacoes').select('*').is('desfeita_em', null)
     .or('pat_removido.eq."' + pat + '",codigo_prefeitura_removido.eq."' + bruto + '"').order('criado_em', { ascending: false }).limit(1);
   if (r.error || !r.data.length) return false;
   const u = r.data[0];
