@@ -331,7 +331,7 @@
     <label for="novo-descricao">Descrição do item</label>
     <input type="text" id="novo-descricao" placeholder="Ex: Armário de aço 2 portas">
     <label for="novo-caracteristicas">Características (detalhes, não vão na etiqueta)</label>
-    <textarea id="novo-caracteristicas" placeholder="Opcional: medidas, marca, modelo, nº de série, configuração..."></textarea>
+    <textarea id="novo-caracteristicas" style="overflow:hidden;resize:none;" placeholder="Opcional: medidas, marca, modelo, nº de série, configuração..."></textarea>
     <label for="novo-local">Sala onde está</label>
     <select id="novo-local"></select>
     <input type="text" id="novo-local-novo" placeholder="Nova sala (se não estiver na lista)" style="margin-top:6px;">
@@ -399,7 +399,7 @@
     <input type="text" id="campo-descricao" placeholder="Ex: Cadeira infantil plástica azul">
 
     <label for="campo-caracteristicas">Características (detalhes, não vão na etiqueta)</label>
-    <textarea id="campo-caracteristicas" placeholder="Medidas, marca, modelo, nº de série, configuração..."></textarea>
+    <textarea id="campo-caracteristicas" style="overflow:hidden;resize:none;" placeholder="Medidas, marca, modelo, nº de série, configuração..."></textarea>
 
     <label for="campo-codigo-prefeitura">Código da prefeitura (etiqueta oficial)</label>
     <input type="text" id="campo-codigo-prefeitura" placeholder="Ex: 0006249 (mantém os zeros à esquerda)">
@@ -613,6 +613,15 @@ function mostrar(id) {
   window.scrollTo(0, 0);
 }
 function $(id) { return document.getElementById(id); }
+// Caixa de texto que cresce conforme o conteúdo (Características)
+function ajustarAltura(el) {
+  if (!el) return;
+  el.style.height = 'auto';
+  el.style.height = Math.max(el.scrollHeight + 2, 60) + 'px';
+}
+document.addEventListener('input', function (e) {
+  if (e.target && (e.target.id === 'campo-caracteristicas' || e.target.id === 'novo-caracteristicas')) ajustarAltura(e.target);
+});
 function esc(t) { return String(t == null ? '' : t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
 function msg(id, texto, tipo) { $(id).innerHTML = texto ? '<span class="status-msg ' + (tipo || '') + '">' + texto + '</span>' : ''; }
 function erroTexto(e) {
@@ -970,6 +979,7 @@ async function mostrarFicha(item) {
   $('campo-codigo-prefeitura').value = item.codigo_prefeitura || '';
   $('campo-descricao').value = item.descricao || '';
   $('campo-caracteristicas').value = item.caracteristicas || '';
+  ajustarAltura($('campo-caracteristicas'));
   $('ficha-valor').textContent = item.valor_aquisicao
     ? 'R$ ' + item.valor_aquisicao + (item.data_aquisicao_idade ? ' (' + item.data_aquisicao_idade + ')' : '')
     : 'não informado';
