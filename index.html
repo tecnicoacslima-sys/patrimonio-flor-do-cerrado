@@ -94,6 +94,8 @@
     .status-msg.ok { color: var(--verde); font-weight: bold; }
     .info-linha { font-size: 13px; color: var(--cinza); margin-top: 2px; }
     .rodape { text-align: center; font-size: 11px; color: #999; margin-top: 20px; }
+    .item-lista.destaque { animation: piscaDestaque 2.4s ease-out; }
+    @keyframes piscaDestaque { 0%,40% { box-shadow: 0 0 0 3px #2a7a4b; } 100% { box-shadow: 0 0 0 0 transparent; } }
     .item-lista { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 10px 4px; border-bottom: 1px solid #eee; cursor: pointer; }
     .item-lista:last-child { border-bottom: none; }
     .item-lista .nome { font-size: 14px; }
@@ -417,7 +419,7 @@
     <button class="btn-secondary" onclick="imprimirEtiquetaItem()">🏷️ Imprimir etiqueta deste item</button>
     <button class="btn-baixa" id="btn-ficha-baixa" onclick="abrirBaixaDaFicha()">📤 Registrar baixa / transferência</button>
     <button class="btn-secondary" id="btn-ficha-unificar" style="display:none;" onclick="unificarDaFicha()">🔗 Este item está duplicado? Unificar</button>
-    <button class="btn-secondary" onclick="voltarInicio()">Cancelar / escanear outro</button>
+    <button class="btn-secondary" id="btn-ficha-voltar" onclick="voltarDaFicha()">Cancelar / escanear outro</button>
     <div id="status-ficha" class="status-msg"></div>
 
     <details class="hist" id="ficha-hist" ontoggle="if(this.open) carregarHistoricoItem()">
@@ -585,6 +587,8 @@ const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 let perfil = null;        // {id, nome, papel, unidade_id, unidade_nome}
 let cacheItens = [];      // todos os itens ativos da unidade
 let itemAtual = null;
+// De onde a ficha foi aberta (lista da sala / sem código), para voltar ao mesmo lugar
+let origemFicha = null;
 let fotoArquivo = null;
 let codeReader = null;
 let baixaAtual = null;
@@ -943,7 +947,7 @@ async function buscar(codigo) {
     const r = await sb.from('itens').select('*')
       .or('pat.eq."' + pat + '",codigo_prefeitura.eq."' + bruto + '"').limit(1);
     if (r.error) throw r.error;
-    if (r.data.length) { itemAtual = r.data[0]; mostrarFicha(itemAtual); return; }
+    if (r.data.length) { origemFicha = null; itemAtual = r.data[0]; mostrarFicha(itemAtual); return; }
     if (await mostrarSeFoiUnificado(pat, bruto)) return;
     if (await mostrarSeFoiBaixado(pat, bruto)) return;
     msg('status-inicial', 'Código não encontrado: ' + esc(bruto), 'erro');
@@ -982,6 +986,9 @@ async function mostrarFicha(item) {
   $('ficha-aviso-outro').style.display = 'none';
   $('btn-ficha-unificar').style.display = perfil && perfil.papel === 'admin' ? 'block' : 'none';
   $('ficha-hist').open = false;
+  $('btn-ficha-voltar').textContent = origemFicha
+    ? (origemFicha.tela === 'tela-sala' ? '↩️ Voltar para a sala ' + origemFicha.sala : '↩️ Voltar para a lista')
+    : 'Cancelar / escanear outro';
   $('ficha-hist-lista').innerHTML = '';
 
   const foto = $('foto-atual');
@@ -1075,7 +1082,7 @@ async function salvarAgora() {
     if (i >= 0) cacheItens[i] = r.data; else cacheItens.push(r.data);
     atualizarMiniProgresso();
     msg('status-ficha', '✅ Conferido e salvo com sucesso!', 'ok');
-    setTimeout(voltarInicio, 1100);
+    setTimeout(voltarDaFicha, 1100);
   } catch (e) {
     msg('status-ficha', 'Erro ao salvar: ' + esc(erroTexto(e)), 'erro');
   }
@@ -1213,7 +1220,12 @@ function linhaItem(item, mostrarConferido) {
       (item.conferido_nesta_rodada ? 'conferido' : 'pendente') + '</span>' +
       '<span class="data-conf' + (conferenciaAntiga(item.data_ultima_conferencia) ? ' antiga' : '') + '">' +
       (dataBR(item.data_ultima_conferencia) ? '📅 ' + dataBR(item.data_ultima_conferencia) : 'nunca conferido') + '</span></span>' : '');
-  row.onclick = function () { itemAtual = item; mostrarFicha(item); };
+  row.dataset.id = item.id;
+  row.onclick = function () {
+    const tela = telaVisivel('tela-sala') ? 'tela-sala' : telaVisivel('tela-sem-codigo') ? 'tela-sem-codigo' : null;
+    origemFicha = tela ? { tela: tela, sala: tela === 'tela-sala' ? $('select-sala').value : '', scroll: window.scrollY, id: item.id } : null;
+    itemAtual = item; mostrarFicha(item);
+  };
   return row;
 }
 
@@ -2063,8 +2075,30 @@ async function alternarAtivo(id, ativo) {
 }
 
 // ===================================================================
+// Sai da ficha: volta para a lista de onde veio (mesma sala, mesma posição) ou para o início
+function voltarDaFicha() {
+  const o = origemFicha;
+  if (!o) { voltarInicio(); return; }
+  itemAtual = null; origemFicha = null;
+  mostrar(o.tela);
+  if (o.tela === 'tela-sala') {
+    if (o.sala) $('select-sala').value = o.sala;
+    renderListaSala();
+  } else {
+    renderSemCodigo();
+  }
+  atualizarMiniProgresso();
+  // Rola de volta até onde estava e destaca o item que acabou de ser editado
+  setTimeout(function () {
+    window.scrollTo(0, o.scroll || 0);
+    const lista = $(o.tela === 'tela-sala' ? 'lista-sala' : 'lista-sem-codigo');
+    const linha = lista && lista.querySelector('[data-id="' + o.id + '"]');
+    if (linha) { linha.classList.remove('destaque'); void linha.offsetWidth; linha.classList.add('destaque'); }
+  }, 30);
+}
+
 function voltarInicio() {
-  itemAtual = null; baixaAtual = null;
+  itemAtual = null; baixaAtual = null; origemFicha = null;
   pararScanner();
   mostrar('tela-inicial');
   inputManual.value = '';
