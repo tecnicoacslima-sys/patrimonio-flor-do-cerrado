@@ -5,9 +5,10 @@
   Desenvolvido por antonioresolve.com
 -->
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="pt-BR" translate="no" class="notranslate">
 <head>
   <meta charset="utf-8">
+  <meta name="google" content="notranslate">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Patrimônio digital</title>
   <link rel="manifest" href="manifest.json">
@@ -1115,7 +1116,7 @@ function imprimirSemCodigo() {
 function abrirJanela(titulo, css) {
   const w = window.open('', '_blank');
   if (!w) { alert('O navegador bloqueou a janela. Permita pop-ups para este site.'); return null; }
-  w.document.write('<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + esc(titulo) + '</title><style>' + css +
+  w.document.write('<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="google" content="notranslate"><title>' + esc(titulo) + '</title><style>' + css +
     '</style></head><body><div id="conteudo" style="font-family:Arial;padding:20px;">Gerando...</div></body></html>');
   w.document.close();
   return w;
