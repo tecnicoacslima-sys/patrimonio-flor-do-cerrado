@@ -425,6 +425,7 @@
     <button class="btn-secondary" onclick="imprimirEtiquetaItem()">🏷️ Imprimir etiqueta deste item</button>
     <button class="btn-baixa" id="btn-ficha-baixa" onclick="abrirBaixaDaFicha()">📤 Registrar baixa / transferência</button>
     <button class="btn-secondary" id="btn-ficha-unificar" style="display:none;" onclick="unificarDaFicha()">🔗 Este item está duplicado? Unificar</button>
+    <button class="btn-danger" id="btn-ficha-excluir" style="display:none;" onclick="excluirCadastroIndevido()">🗑️ Excluir cadastro indevido (teste / em branco)</button>
     <button class="btn-secondary" id="btn-ficha-voltar" onclick="voltarDaFicha()">Cancelar / escanear outro</button>
     <div id="status-ficha" class="status-msg"></div>
 
@@ -965,6 +966,7 @@ async function buscar(codigo) {
     if (r.data.length) { origemFicha = null; itemAtual = r.data[0]; mostrarFicha(itemAtual); return; }
     if (await mostrarSeFoiUnificado(pat, bruto)) return;
     if (await mostrarSeFoiBaixado(pat, bruto)) return;
+    if (await mostrarSeFoiExcluido(pat)) return;
     msg('status-inicial', 'Código não encontrado: ' + esc(bruto), 'erro');
   } catch (e) {
     msg('status-inicial', 'Erro: ' + esc(erroTexto(e)), 'erro');
@@ -1005,6 +1007,8 @@ async function mostrarFicha(item) {
   $('foto-nova-preview').style.display = 'none';
   $('ficha-aviso-outro').style.display = 'none';
   $('btn-ficha-unificar').style.display = perfil && perfil.papel === 'admin' ? 'block' : 'none';
+  // Exclusão só aparece para admin e só em item sem vínculo (sem código da prefeitura, sem foto, não conferido)
+  $('btn-ficha-excluir').style.display = (perfil && perfil.papel === 'admin' && podeExcluirCadastro(item)) ? 'block' : 'none';
   $('ficha-hist').open = false;
   $('btn-ficha-voltar').textContent = origemFicha
     ? (origemFicha.tela === 'tela-sala' ? '↩️ Voltar para a sala ' + origemFicha.sala : '↩️ Voltar para a lista')
@@ -1581,6 +1585,41 @@ async function mostrarSeFoiBaixado(pat, bruto) {
     '<br><button class="btn-secondary" style="margin-top:8px;" onclick="abrirRegistroBaixa(\'' + esc(b.id) + '\')">Abrir registro de baixa</button></div>';
   return true;
 }
+// ================= EXCLUSÃO DE CADASTRO INDEVIDO =================
+// Para cadastros de teste ou em branco. Item real (com código da prefeitura, foto,
+// conferido ou com baixa) NÃO pode ser excluído: o banco recusa e orienta usar a baixa.
+function podeExcluirCadastro(item) {
+  return !!item && !String(item.codigo_prefeitura || '').trim() && !item.foto_path && !item.conferido_nesta_rodada;
+}
+async function excluirCadastroIndevido() {
+  if (!itemAtual) return;
+  const it = itemAtual;
+  if (!podeExcluirCadastro(it)) {
+    alert('Este item não pode ser excluído: ele tem código da prefeitura, foto ou já foi conferido.\n\nSe o móvel saiu da unidade, use "Registrar baixa / transferência".');
+    return;
+  }
+  const motivo = (prompt('Excluir ' + it.pat + ' — ' + (it.descricao || '(sem descrição)') +
+    '\n\nUse só para cadastro de teste ou em branco (não é um móvel de verdade).\n\nMotivo da exclusão:', 'Cadastro de teste / em branco') || '').trim();
+  if (!motivo) return;
+  if (!confirm('Confirmar a exclusão de ' + it.pat + '?\n\nO item sai da lista, uma cópia fica guardada e a ação é registrada no histórico com o seu nome.\nO número ' + it.pat + ' fica BLOQUEADO (não volta para os códigos livres).')) return;
+  msg('status-ficha', 'Excluindo...');
+  const r = await sb.rpc('excluir_cadastro_indevido', { p_pat: it.pat, p_motivo: motivo, p_liberar_codigo: false });
+  if (r.error) { msg('status-ficha', 'Erro: ' + esc(erroTexto(r.error)), 'erro'); return; }
+  toast('🗑️ ' + it.pat + ' excluído (código bloqueado).');
+  carregarItens().catch(function () {});
+  voltarDaFicha();
+}
+// Quem bipar um código excluído recebe o aviso em vez de "não encontrado"
+async function mostrarSeFoiExcluido(pat) {
+  const r = await sb.from('exclusoes').select('*').eq('pat', pat).order('criado_em', { ascending: false }).limit(1);
+  if (r.error || !r.data.length) return false;
+  const x = r.data[0];
+  $('status-inicial').innerHTML = '<div class="aviso-baixa concluida">🗑️ <b>' + esc(x.pat) + '</b> — ' + esc(x.descricao || '') +
+    '<br>Este cadastro foi <b>excluído</b> por ser indevido (' + esc(x.motivo || '') + ').<br>Em ' +
+    esc(dataHoraBR(x.criado_em) || '') + (x.usuario_nome ? ' por ' + esc(x.usuario_nome) : '') + '.</div>';
+  return true;
+}
+
 async function abrirBaixaDaFicha() {
   if (!itemAtual) return;
   const base = { pat: itemAtual.pat, descricao: itemAtual.descricao, ultima_sala: itemAtual.local_atual };
