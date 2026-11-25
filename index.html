@@ -84,7 +84,7 @@
     .badge-pendente { background: #FFF2CC; color: var(--amarelo); }
     .badge-duvidoso { background: #F8CBAD; color: var(--vermelho); }
     label { display: block; font-size: 12px; color: var(--cinza); margin: 12px 0 4px; font-weight: bold; }
-    select, textarea, input[type=text], input[type=email], input[type=password], input[type=date] {
+    select, textarea, input[type=text], input[type=email], input[type=password], input[type=date], input[type=tel] {
       width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #ccc; font-size: 16px; font-family: inherit; background: #fff;
     }
     textarea { min-height: 60px; resize: vertical; }
@@ -120,6 +120,14 @@
     #mini-progresso .topo b { color: var(--azul); }
     .aviso-baixa { background: #FFF2CC; border-left: 4px solid var(--amarelo); padding: 10px; border-radius: 6px; font-size: 13px; margin: 8px 0; text-align: left; }
     .aviso-baixa.concluida { background: #fdecea; border-left-color: var(--vermelho); }
+    /* Empréstimo domiciliar */
+    .aviso-emp { background: #E7F1FB; border-left: 4px solid #2F6DB5; padding: 10px; border-radius: 6px; font-size: 13px; margin: 8px 0; text-align: left; }
+    .aviso-emp.vencido { background: #fdecea; border-left-color: var(--vermelho); }
+    .btn-emp { background: #E7F1FB; color: #1F4E8C; margin-top: 8px; font-weight: 600; }
+    .tag-emp { background: #E7F1FB; color: #1F4E8C; }
+    .tag-emp-vencido { background: #fdecea; color: var(--vermelho); }
+    .bloco-devolucao { background: #F4F8FC; border: 1px solid #D5E3F2; border-radius: 6px; padding: 4px 12px 12px; margin-top: 14px; }
+    .emp-lgpd { font-size: 11px; color: #666; background: #FAFAF7; border: 1px dashed #ccc; border-radius: 6px; padding: 8px; margin-top: 10px; }
     .bloco-retirada { border: 1px dashed #bbb; border-radius: 8px; padding: 4px 12px 12px; margin-top: 12px; }
     .linha-check { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 13px; color: #333; margin-top: 14px; }
     .linha-check input { width: auto; transform: scale(1.3); }
@@ -296,6 +304,7 @@
       <button class="btn-secondary" onclick="abrirSemCodigo()">🟠 Sem código da prefeitura</button>
       <button class="btn-secondary" onclick="verCodigosLivres()">🔢 Códigos livres na sequência</button>
       <button class="btn-secondary" onclick="abrirListaBaixas()">📦 Baixados / transferidos</button>
+      <button class="btn-secondary" id="btn-emprestimos" onclick="abrirListaEmprestimos()">🤝 Empréstimos domiciliares</button>
       <button class="btn-secondary" onclick="exportarInventario()">📥 Baixar inventário (Excel)</button>
       <button class="btn-secondary" id="btn-duplicados" style="display:none;" onclick="abrirDuplicados()">🔍 Possíveis duplicados</button>
       <button class="btn-secondary" id="btn-equipe" style="display:none;" onclick="abrirEquipe()">👥 Equipe (acessos)</button>
@@ -386,6 +395,7 @@
     <div class="info-linha">Última conferência: <b id="ficha-conferencia">—</b></div>
     <div id="ficha-aviso-baixa" class="aviso-baixa" style="display:none;"></div>
     <div id="ficha-aviso-outro" class="aviso-baixa concluida" style="display:none;"></div>
+    <div id="ficha-aviso-emp" class="aviso-emp" style="display:none;"></div>
 
     <img id="foto-atual" class="foto-preview" style="display:none;">
 
@@ -423,6 +433,7 @@
 
     <button class="btn-primary" id="btn-salvar" style="margin-top:16px;" onclick="salvar()">✅ Salvar e marcar como conferido</button>
     <button class="btn-secondary" onclick="imprimirEtiquetaItem()">🏷️ Imprimir etiqueta deste item</button>
+    <button class="btn-emp" id="btn-ficha-emp" onclick="abrirEmprestimoDaFicha()">🤝 Emprestar para uso domiciliar</button>
     <button class="btn-baixa" id="btn-ficha-baixa" onclick="abrirBaixaDaFicha()">📤 Registrar baixa / transferência</button>
     <button class="btn-secondary" id="btn-ficha-unificar" style="display:none;" onclick="unificarDaFicha()">🔗 Este item está duplicado? Unificar</button>
     <button class="btn-danger" id="btn-ficha-excluir" style="display:none;" onclick="excluirCadastroIndevido()">🗑️ Excluir cadastro indevido (teste / em branco)</button>
@@ -512,6 +523,92 @@
     <div id="status-baixa" class="status-msg"></div>
   </div>
 
+  <!-- ================= LISTA DE EMPRÉSTIMOS ================= -->
+  <div id="tela-emprestimos" class="card" style="display:none;">
+    <h2 class="tit">🤝 Empréstimos domiciliares</h2>
+    <div class="info-linha" style="font-size:12px;">Para emprestar um bem, abra a ficha dele (bipe a etiqueta) e toque em <b>🤝 Emprestar para uso domiciliar</b>.</div>
+    <label for="filtro-emprestimos">Mostrar</label>
+    <select id="filtro-emprestimos" onchange="carregarListaEmprestimos()">
+      <option value="EMPRESTADO">Emprestados agora</option>
+      <option value="VENCIDO">Só os com prazo vencido</option>
+      <option value="DEVOLVIDO">Devolvidos</option>
+      <option value="CANCELADO">Cancelados</option>
+      <option value="">Todos os registros</option>
+    </select>
+    <div id="lista-emprestimos" style="margin-top:12px;"></div>
+    <button class="btn-secondary" style="margin-top:14px;" onclick="voltarInicio()">Voltar</button>
+  </div>
+
+  <!-- ================= FORMULÁRIO DE EMPRÉSTIMO / DEVOLUÇÃO ================= -->
+  <div id="tela-emprestimo" class="card" style="display:none;">
+    <h2 class="tit" style="color:#1F4E8C;" id="emp-titulo">Empréstimo domiciliar</h2>
+    <div style="font-size:14px;"><b id="emp-pat">—</b> — <span id="emp-desc">—</span></div>
+    <div class="info-linha">Cód. prefeitura: <b id="emp-codpref">—</b> · Sala de origem: <b id="emp-sala">—</b></div>
+    <div class="info-linha">Termo: <b id="emp-codigo">será gerado ao salvar</b> · Situação: <b id="emp-status">NOVO</b></div>
+
+    <div id="emp-bloco-saida">
+      <label for="emp-data-saida">Data de saída</label>
+      <input type="date" id="emp-data-saida">
+      <label for="emp-data-prevista">Devolução ou reavaliação prevista para</label>
+      <input type="date" id="emp-data-prevista">
+      <div class="info-linha" style="font-size:11px;">Sugestão: 90 dias. Para renovar depois, é só mudar esta data e salvar.</div>
+      <label for="emp-estado-saida">Estado do bem na saída</label>
+      <select id="emp-estado-saida">
+        <option value="">— escolha —</option><option>BOM</option><option>REGULAR</option><option>RUIM</option>
+      </select>
+      <label for="emp-obs-saida">Observações sobre o estado (avarias, peças faltando)</label>
+      <input type="text" id="emp-obs-saida" placeholder="Opcional">
+      <label for="emp-resp-nome">Quem está retirando o bem (nome completo)</label>
+      <input type="text" id="emp-resp-nome" placeholder="Familiar ou responsável">
+      <label for="emp-resp-vinculo">Parentesco ou vínculo com o paciente</label>
+      <input type="text" id="emp-resp-vinculo" placeholder="Ex: filha, esposo, cuidadora">
+      <label for="emp-resp-tel">Telefone para contato</label>
+      <input type="tel" id="emp-resp-tel" placeholder="(65) 9 9999-9999">
+      <label for="emp-profissional">Profissional que indicou o empréstimo</label>
+      <input type="text" id="emp-profissional" placeholder="Nome e cargo (ex: Enf. Fulana)">
+      <label for="emp-obs">Observações</label>
+      <textarea id="emp-obs" placeholder="Opcional"></textarea>
+      <div class="emp-lgpd">🔒 <b>LGPD:</b> não registre aqui nome, CPF ou diagnóstico do paciente. Esses dados vão só no termo em papel, que fica arquivado na coordenação.</div>
+    </div>
+
+    <div id="emp-bloco-devolucao" class="bloco-devolucao" style="display:none;">
+      <label class="linha-check"><input type="checkbox" id="emp-devolvido" onchange="ajustarCamposEmprestimo()"> O bem foi devolvido à unidade</label>
+      <div id="emp-campos-devolucao" style="display:none;">
+        <label for="emp-data-dev">Data da devolução</label>
+        <input type="date" id="emp-data-dev">
+        <label for="emp-estado-dev">Estado do bem na devolução</label>
+        <select id="emp-estado-dev">
+          <option value="">— escolha —</option><option>BOM</option><option>REGULAR</option><option>RUIM</option><option>QUEBRADO</option>
+        </select>
+        <label for="emp-motivo-dev">Motivo da devolução</label>
+        <select id="emp-motivo-dev">
+          <option value="">— escolha —</option>
+          <option>Fim da necessidade de uso</option>
+          <option>Óbito do paciente ou mudança de município</option>
+          <option>Fim do prazo do empréstimo</option>
+          <option>Defeito ou dano no bem</option>
+          <option>Solicitação da unidade de saúde ou da SMS</option>
+          <option>Outro</option>
+        </select>
+        <label for="emp-devolvido-por">Quem devolveu (nome)</label>
+        <input type="text" id="emp-devolvido-por" placeholder="Nome de quem trouxe o bem">
+        <label for="emp-sala-retorno">Sala para onde o bem volta</label>
+        <select id="emp-sala-retorno"></select>
+        <label for="emp-obs-dev">Observações da devolução</label>
+        <input type="text" id="emp-obs-dev" placeholder="Opcional (avarias, peças faltando...)">
+      </div>
+    </div>
+
+    <div id="emp-resumo-dev" class="aviso-emp" style="display:none;"></div>
+
+    <button class="btn-primary" id="emp-btn-salvar" style="margin-top:16px;" onclick="salvarEmprestimo()">💾 Salvar empréstimo</button>
+    <button class="btn-secondary" id="emp-btn-termo" style="display:none;" onclick="imprimirTermoEmprestimo()">🖨️ Imprimir Termo de Empréstimo</button>
+    <button class="btn-secondary" id="emp-btn-termo-dev" style="display:none;" onclick="imprimirTermoDevolucao()">🖨️ Imprimir Termo de Devolução</button>
+    <button class="btn-secondary" id="emp-btn-cancelar" style="display:none;" onclick="cancelarEmprestimo()">↩️ Cancelar empréstimo (registrado por engano)</button>
+    <button class="btn-secondary" onclick="voltarDoEmprestimo()">Voltar</button>
+    <div id="status-emprestimo" class="status-msg"></div>
+  </div>
+
   <!-- ================= POSSÍVEIS DUPLICADOS (admin) ================= -->
   <div id="tela-duplicados" class="card" style="display:none;">
     <h2 class="tit">🔍 Possíveis duplicados</h2>
@@ -599,12 +696,14 @@ let origemFicha = null;
 let fotoArquivo = null;
 let codeReader = null;
 let baixaAtual = null;
+let empAtual = null;      // {item:{pat,descricao,codigo_prefeitura,local_atual}, registro, deFicha}
 // Chegou pelo link "criar nova senha" do e-mail?
 let emRecuperacao = /type=recovery/.test(location.hash);
 let iniciando = false;
 
 const TELAS = ['tela-login', 'tela-nova-senha', 'tela-sem-acesso', 'tela-inicial', 'video-wrap', 'tela-progresso',
-  'tela-cadastro', 'tela-sala', 'tela-ficha', 'tela-baixas', 'tela-baixa', 'tela-equipe', 'tela-duplicados', 'tela-unificar', 'tela-sem-codigo'];
+  'tela-cadastro', 'tela-sala', 'tela-ficha', 'tela-baixas', 'tela-baixa', 'tela-equipe', 'tela-duplicados', 'tela-unificar', 'tela-sem-codigo',
+  'tela-emprestimos', 'tela-emprestimo'];
 function mostrar(id) {
   const bi = document.getElementById('btn-inicio');
   if (bi) bi.style.display = (perfil && id !== 'tela-inicial') ? 'inline-flex' : 'none';
@@ -739,6 +838,7 @@ async function iniciarSessao() {
     voltarInicio();
     carregarItens();
     carregarNomesEquipe();
+    atualizarBotaoEmprestimos();
     ligarAoVivo();
   } catch (e) {
     mostrar('tela-login');
@@ -790,6 +890,11 @@ function ligarAoVivo() {
       function (ev) { if (cacheItens.some(function (i) { return i.id === (ev.old || {}).id; })) aplicarMudancaItem(ev); })
     .on('postgres_changes', { event: '*', schema: 'public', table: 'baixas', filter: 'unidade_id=eq.' + perfil.unidade_id },
       function () { if (telaVisivel('tela-baixas')) carregarListaBaixas(); })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'emprestimos', filter: 'unidade_id=eq.' + perfil.unidade_id },
+      function () {
+        if (telaVisivel('tela-emprestimos')) carregarListaEmprestimos();
+        if (telaVisivel('tela-inicial')) atualizarBotaoEmprestimos();
+      })
     .subscribe(function (status) {
       $('ao-vivo').classList.toggle('on', status === 'SUBSCRIBED');
       $('ao-vivo').title = status === 'SUBSCRIBED' ? 'Ao vivo: as mudanças dos outros aparecem na hora' : 'Reconectando...';
@@ -1022,6 +1127,7 @@ async function mostrarFicha(item) {
     if (u && itemAtual && itemAtual.pat === item.pat) { foto.src = u; foto.style.display = 'block'; }
   }
   verificarBaixaNaFicha(item.pat);
+  verificarEmprestimoNaFicha(item.pat);
   // Pega do banco a hora exata da última alteração (usada para não salvar por cima de outra pessoa)
   sb.from('itens').select('atualizado_em,atualizado_por,atualizado_dispositivo').eq('id', item.id).maybeSingle().then(function (r) {
     if (r.data && itemAtual && itemAtual.id === item.id) {
@@ -1789,6 +1895,407 @@ async function carregarListaBaixas() {
 }
 
 // ===================================================================
+// EMPRÉSTIMO DOMICILIAR (cadeira de rodas, suporte de soro...)
+// O bem vai para a sala "EMPRÉSTIMO DOMICILIAR" enquanto está fora e volta
+// para a sala escolhida na devolução. Gravação só pelas funções do banco.
+// LGPD: o app não guarda dados do paciente — eles vão só no termo em papel.
+// ===================================================================
+const SALA_EMPRESTIMO = 'EMPRÉSTIMO DOMICILIAR';
+
+function somarDias(iso, n) {
+  const p = String(iso).split('-').map(Number);
+  const d = new Date(p[0], p[1] - 1, p[2] + n);
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+function empVencido(e) { return !!e && e.status === 'EMPRESTADO' && e.data_prevista < hojeISO(); }
+function tagStatusEmp(e) {
+  if (empVencido(e)) return '<span class="tag tag-emp-vencido">prazo vencido</span>';
+  if (e.status === 'EMPRESTADO') return '<span class="tag tag-emp">emprestado</span>';
+  if (e.status === 'DEVOLVIDO') return '<span class="tag tag-ok">devolvido</span>';
+  return '<span class="tag tag-baixa-cinza">' + esc(String(e.status || '').toLowerCase()) + '</span>';
+}
+
+// Botão do início mostra quantos estão fora e quantos venceram
+async function atualizarBotaoEmprestimos() {
+  const r = await sb.from('emprestimos').select('data_prevista').eq('status', 'EMPRESTADO');
+  if (r.error) return;
+  const hoje = hojeISO();
+  const venc = r.data.filter(function (e) { return e.data_prevista < hoje; }).length;
+  $('btn-emprestimos').innerHTML = '🤝 Empréstimos domiciliares' +
+    (r.data.length ? ' (' + r.data.length + ' fora' + (venc ? ', <b style="color:var(--vermelho)">' + venc + ' vencido' + (venc > 1 ? 's' : '') + '</b>' : '') + ')' : '');
+}
+
+async function emprestimoAtivoDe(pat) {
+  const r = await sb.from('emprestimos').select('*').eq('pat', pat).eq('status', 'EMPRESTADO').maybeSingle();
+  return r.error ? null : r.data;
+}
+
+async function verificarEmprestimoNaFicha(pat) {
+  const aviso = $('ficha-aviso-emp'), botao = $('btn-ficha-emp');
+  aviso.style.display = 'none';
+  botao.textContent = '🤝 Emprestar para uso domiciliar';
+  $('campo-local').disabled = false; $('campo-local-novo').disabled = false;
+  const e = await emprestimoAtivoDe(pat);
+  if (!itemAtual || itemAtual.pat !== pat || !e) return;
+  aviso.className = 'aviso-emp' + (empVencido(e) ? ' vencido' : '');
+  aviso.innerHTML = '🤝 <b>Emprestado para uso domiciliar</b> — termo <b>' + esc(e.codigo) + '</b><br>' +
+    'Saiu em ' + esc(dataBR(e.data_saida)) + ' · previsto até <b>' + esc(dataBR(e.data_prevista)) + '</b>' +
+    (empVencido(e) ? ' <b style="color:var(--vermelho)">(vencido)</b>' : '') +
+    '<br>Responsável: ' + esc(e.responsavel_nome) + (e.responsavel_telefone ? ' · ' + esc(e.responsavel_telefone) : '');
+  aviso.style.display = 'block';
+  botao.textContent = '🤝 Ver empréstimo / registrar devolução';
+  // Enquanto está emprestado, a sala só muda pela devolução
+  $('campo-local').disabled = true; $('campo-local-novo').disabled = true;
+}
+
+async function abrirEmprestimoDaFicha() {
+  if (!itemAtual) return;
+  const it = itemAtual;
+  const e = await emprestimoAtivoDe(it.pat);
+  prepararFormEmprestimo(it, e, true);
+}
+
+async function abrirEmprestimoPorId(id) {
+  const r = await sb.from('emprestimos').select('*').eq('id', id).single();
+  if (r.error) { alert(erroTexto(r.error)); return; }
+  const e = r.data;
+  const it = cacheItens.find(function (i) { return i.pat === e.pat; }) ||
+    { pat: e.pat, descricao: e.descricao, codigo_prefeitura: e.codigo_prefeitura, local_atual: e.sala_origem };
+  prepararFormEmprestimo(it, e, false);
+}
+
+function prepararFormEmprestimo(item, reg, deFicha) {
+  empAtual = {
+    item: { pat: item.pat, descricao: item.descricao, codigo_prefeitura: item.codigo_prefeitura, local_atual: item.local_atual },
+    registro: reg, deFicha: !!deFicha
+  };
+  const r = reg || {};
+  const novo = !reg, ativo = r.status === 'EMPRESTADO', encerrado = !!reg && !ativo;
+  mostrar('tela-emprestimo');
+  $('status-emprestimo').innerHTML = '';
+  $('emp-titulo').textContent = novo ? 'Novo empréstimo domiciliar' : 'Empréstimo ' + r.codigo;
+  $('emp-pat').textContent = item.pat;
+  $('emp-desc').textContent = (reg ? r.descricao : item.descricao) || '—';
+  $('emp-codpref').textContent = (reg ? r.codigo_prefeitura : item.codigo_prefeitura) || 'sem plaqueta';
+  $('emp-sala').textContent = (reg ? r.sala_origem : item.local_atual) || '—';
+  $('emp-codigo').textContent = reg ? r.codigo : 'será gerado ao salvar';
+  $('emp-status').innerHTML = reg ? tagStatusEmp(r) : 'NOVO';
+
+  const hoje = hojeISO();
+  $('emp-data-saida').value = r.data_saida || hoje;
+  $('emp-data-prevista').value = r.data_prevista || somarDias(hoje, 90);
+  $('emp-estado-saida').value = r.estado_saida || (/^(BOM|REGULAR|RUIM)$/.test(item.situacao || '') ? item.situacao : '');
+  $('emp-obs-saida').value = r.obs_saida || '';
+  $('emp-resp-nome').value = r.responsavel_nome || '';
+  $('emp-resp-vinculo').value = r.responsavel_vinculo || '';
+  $('emp-resp-tel').value = r.responsavel_telefone || '';
+  $('emp-profissional').value = r.profissional || '';
+  $('emp-obs').value = r.obs || '';
+  // Depois de salvo, data de saída e estado de saída não mudam mais (estão no termo assinado)
+  $('emp-data-saida').disabled = !novo; $('emp-estado-saida').disabled = !novo;
+  ['emp-data-prevista', 'emp-obs-saida', 'emp-resp-nome', 'emp-resp-vinculo', 'emp-resp-tel', 'emp-profissional', 'emp-obs']
+    .forEach(function (id) { $(id).disabled = encerrado; });
+
+  $('emp-bloco-devolucao').style.display = ativo ? 'block' : 'none';
+  $('emp-devolvido').checked = false;
+  $('emp-data-dev').value = hoje;
+  $('emp-estado-dev').value = '';
+  $('emp-motivo-dev').value = '';
+  $('emp-devolvido-por').value = r.responsavel_nome || '';
+  $('emp-obs-dev').value = '';
+  preencherSalas('emp-sala-retorno', r.sala_origem || item.local_atual);
+  // a sala de empréstimo não é destino de devolução
+  Array.from($('emp-sala-retorno').options).forEach(function (o) { if (o.value === SALA_EMPRESTIMO) o.remove(); });
+
+  const res = $('emp-resumo-dev');
+  res.style.display = 'none';
+  if (r.status === 'DEVOLVIDO') {
+    res.className = 'aviso-emp';
+    res.innerHTML = '✅ <b>Devolvido em ' + esc(dataBR(r.data_devolucao)) + '</b> por ' + esc(r.devolvido_por || '—') +
+      '<br>Estado: ' + esc(r.estado_devolucao || '—') + (r.motivo_devolucao ? ' · Motivo: ' + esc(r.motivo_devolucao) : '') +
+      '<br>Recebido por ' + esc(r.recebido_nome || '—') + ' · voltou para ' + esc(r.sala_retorno || '—') +
+      (r.obs_devolucao ? '<br>Obs.: ' + esc(r.obs_devolucao) : '');
+    res.style.display = 'block';
+  } else if (r.status === 'CANCELADO') {
+    res.className = 'aviso-emp vencido';
+    res.innerHTML = '↩️ <b>Empréstimo cancelado</b> (registrado por engano). Veja o motivo nas observações.';
+    res.style.display = 'block';
+  }
+
+  $('emp-btn-salvar').style.display = encerrado ? 'none' : 'block';
+  $('emp-btn-termo').style.display = reg && r.status !== 'CANCELADO' ? 'block' : 'none';
+  $('emp-btn-termo-dev').style.display = reg && r.status !== 'CANCELADO' ? 'block' : 'none';
+  $('emp-btn-termo-dev').textContent = r.status === 'DEVOLVIDO' ? '🖨️ Imprimir Termo de Devolução (preenchido)' : '🖨️ Imprimir Termo de Devolução (em branco)';
+  $('emp-btn-cancelar').style.display = ativo ? 'block' : 'none';
+  ajustarCamposEmprestimo();
+}
+
+function ajustarCamposEmprestimo() {
+  const dev = $('emp-devolvido').checked;
+  $('emp-campos-devolucao').style.display = dev ? 'block' : 'none';
+  if (!empAtual) return;
+  const r = empAtual.registro;
+  $('emp-btn-salvar').textContent = !r ? '💾 Salvar empréstimo e gerar nº do termo'
+    : dev ? '✅ Registrar devolução' : '💾 Salvar alterações (ex.: renovar prazo)';
+}
+
+let salvandoEmp = false;
+async function salvarEmprestimo() {
+  if (!empAtual || salvandoEmp) return;
+  const r = empAtual.registro;
+  const p = {
+    data_prevista: $('emp-data-prevista').value,
+    obs_saida: $('emp-obs-saida').value.trim(),
+    responsavel_nome: $('emp-resp-nome').value.trim(),
+    responsavel_vinculo: $('emp-resp-vinculo').value.trim(),
+    responsavel_telefone: $('emp-resp-tel').value.trim(),
+    profissional: $('emp-profissional').value.trim(),
+    obs: $('emp-obs').value.trim()
+  };
+  if (!p.responsavel_nome) { msg('status-emprestimo', 'Informe quem está retirando o bem.', 'erro'); $('emp-resp-nome').focus(); return; }
+  if (!p.data_prevista) { msg('status-emprestimo', 'Informe a data prevista para devolução ou reavaliação.', 'erro'); return; }
+  const devolver = !!r && $('emp-devolvido').checked;
+  if (!r) {
+    p.pat = empAtual.item.pat;
+    p.data_saida = $('emp-data-saida').value;
+    p.estado_saida = $('emp-estado-saida').value;
+    if (!p.data_saida) { msg('status-emprestimo', 'Informe a data de saída.', 'erro'); return; }
+    if (!p.estado_saida) { msg('status-emprestimo', 'Escolha o estado do bem na saída.', 'erro'); return; }
+    if (!confirm('Registrar o empréstimo de ' + p.pat + ' para ' + p.responsavel_nome + '?\n\n' +
+      'O item vai para a sala "' + SALA_EMPRESTIMO + '" até a devolução.')) return;
+  } else {
+    p.id = r.id;
+  }
+  const dev = {};
+  if (devolver) {
+    dev.id = r.id;
+    dev.data_devolucao = $('emp-data-dev').value;
+    dev.estado_devolucao = $('emp-estado-dev').value;
+    dev.motivo_devolucao = $('emp-motivo-dev').value;
+    dev.devolvido_por = $('emp-devolvido-por').value.trim();
+    dev.sala_retorno = $('emp-sala-retorno').value;
+    dev.obs_devolucao = $('emp-obs-dev').value.trim();
+    if (!dev.data_devolucao || !dev.estado_devolucao || !dev.devolvido_por) {
+      msg('status-emprestimo', 'Para registrar a devolução, informe a data, o estado do bem e quem devolveu.', 'erro'); return;
+    }
+    if (!dev.motivo_devolucao) { msg('status-emprestimo', 'Escolha o motivo da devolução.', 'erro'); return; }
+    if (!confirm('Confirmar que ' + r.pat + ' VOLTOU para a unidade?\n\nEle volta para a sala ' + dev.sala_retorno + '.')) return;
+  }
+  salvandoEmp = true;
+  $('emp-btn-salvar').disabled = true;
+  msg('status-emprestimo', 'Salvando...');
+  try {
+    let res = await sb.rpc('registrar_emprestimo', { p: p });
+    if (res.error) throw res.error;
+    let reg = res.data.registro;
+    let texto = res.data.novo ? '✅ Empréstimo registrado: termo <b>' + esc(reg.codigo) + '</b>. Agora imprima o termo em 2 vias para assinatura.'
+      : '✅ Alterações salvas.';
+    if (devolver) {
+      res = await sb.rpc('registrar_devolucao', { p: dev });
+      if (res.error) throw res.error;
+      reg = res.data.registro;
+      texto = '✅ Devolução registrada. O bem voltou para ' + esc(reg.sala_retorno) + '. Imprima o Termo de Devolução e grampeie junto à via do empréstimo.';
+    }
+    prepararFormEmprestimo(empAtual.item, reg, empAtual.deFicha);
+    msg('status-emprestimo', texto, 'ok');
+    carregarItens().catch(function () {});
+  } catch (e) {
+    msg('status-emprestimo', 'Erro: ' + esc(erroTexto(e)), 'erro');
+  } finally {
+    salvandoEmp = false;
+    $('emp-btn-salvar').disabled = false;
+  }
+}
+
+async function cancelarEmprestimo() {
+  const r = empAtual && empAtual.registro;
+  if (!r) return;
+  const m = prompt('Cancelar o empréstimo ' + r.codigo + '?\n\nUse só se foi registrado por engano (o bem nem saiu). ' +
+    'Se o bem saiu e voltou, use "O bem foi devolvido".\n\nMotivo:', '');
+  if (m === null) return;
+  if (!m.trim()) { msg('status-emprestimo', 'Informe o motivo do cancelamento.', 'erro'); return; }
+  const res = await sb.rpc('cancelar_emprestimo', { p_id: r.id, p_motivo: m.trim() });
+  if (res.error) { msg('status-emprestimo', 'Erro: ' + esc(erroTexto(res.error)), 'erro'); return; }
+  prepararFormEmprestimo(empAtual.item, res.data, empAtual.deFicha);
+  msg('status-emprestimo', '✅ Empréstimo cancelado. O item voltou para ' + esc(res.data.sala_retorno) + '.', 'ok');
+  carregarItens().catch(function () {});
+}
+
+async function voltarDoEmprestimo() {
+  const e = empAtual;
+  empAtual = null;
+  if (e && e.deFicha) {
+    const r = await sb.from('itens').select('*').eq('pat', e.item.pat).maybeSingle();
+    if (r.data) { itemAtual = r.data; mostrarFicha(r.data); return; }
+  }
+  if (e && !e.deFicha) { abrirListaEmprestimos(); return; }
+  voltarInicio();
+}
+
+async function abrirListaEmprestimos() { mostrar('tela-emprestimos'); carregarListaEmprestimos(); }
+async function carregarListaEmprestimos() {
+  const div = $('lista-emprestimos');
+  div.innerHTML = '<div class="status-msg">Carregando...</div>';
+  const f = $('filtro-emprestimos').value;
+  let q = sb.from('emprestimos').select('*');
+  if (f === 'VENCIDO') q = q.eq('status', 'EMPRESTADO').lt('data_prevista', hojeISO());
+  else if (f) q = q.eq('status', f);
+  q = (f === 'EMPRESTADO' || f === 'VENCIDO') ? q.order('data_prevista') : q.order('registrado_em', { ascending: false });
+  const r = await q;
+  if (r.error) { div.innerHTML = '<div class="status-msg erro">' + esc(erroTexto(r.error)) + '</div>'; return; }
+  if (!r.data.length) { div.innerHTML = '<div class="status-msg">Nenhum registro aqui.</div>'; return; }
+  div.innerHTML = '';
+  r.data.forEach(function (e) {
+    const row = document.createElement('div');
+    row.className = 'item-lista';
+    const quando = e.status === 'EMPRESTADO' ? 'previsto até ' + dataBR(e.data_prevista)
+      : e.status === 'DEVOLVIDO' ? 'devolvido em ' + dataBR(e.data_devolucao) : 'saída ' + dataBR(e.data_saida);
+    row.innerHTML = '<span class="nome">' + esc(e.descricao) + ' <span style="color:#999">(' + esc(e.pat) + ')</span><br>' +
+      '<span style="font-size:11px;color:var(--cinza)">' + esc(e.codigo) + ' · ' + esc(e.responsavel_nome) +
+      (e.responsavel_telefone ? ' · ' + esc(e.responsavel_telefone) : '') + ' · ' + esc(quando) + '</span></span>' + tagStatusEmp(e);
+    row.onclick = function () { abrirEmprestimoPorId(e.id); };
+    div.appendChild(row);
+  });
+}
+
+// ----- Termos impressos (mesmo modelo do documento aprovado pela coordenação) -----
+const CSS_TERMO = '@page{size:A4;margin:11mm 15mm}body{font-family:Arial,Helvetica,sans-serif;color:#111;font-size:9.6pt}' +
+  '.cab{display:flex;align-items:center;gap:14px;margin-bottom:6px}.cab img{height:62px}' +
+  '.cab div{font-size:9pt;line-height:1.35}.cab b{font-size:10pt}' +
+  'h1{font-size:12.5pt;text-align:center;margin:8px 0 2px}.num{text-align:center;font-weight:700;margin-bottom:2px}' +
+  '.vias{text-align:center;font-size:8pt;color:#444;margin-bottom:4px}' +
+  'h2{font-size:9.6pt;margin:8px 0 3px;text-transform:uppercase}' +
+  'table{width:100%;border-collapse:collapse}td{border:1px solid #777;padding:3px 6px;vertical-align:top;height:13px}' +
+  'td:first-child{width:40%;font-weight:700;background:#F1F4EE}' +
+  'p{text-align:justify;margin:4px 0}ol{margin:2px 0 0 0;padding-left:20px}ol li{text-align:justify;margin:1px 0}' +
+  '.local{text-align:right;margin-top:10px}.ass{margin-top:26px;text-align:center;font-size:9pt}' +
+  '.ass .linha{border-top:1px solid #111;width:62%;margin:0 auto;padding-top:2px}' +
+  '.ass2{display:flex;gap:18px;margin-top:34px;text-align:center;font-size:9pt}.ass2 div{flex:1;border-top:1px solid #111;padding-top:2px}' +
+  '.opc{line-height:1.6}.rod{text-align:center;font-size:7pt;color:#999;margin-top:12px}';
+// O brasão vai embutido no termo (não depende de a janela de impressão conseguir baixar a imagem)
+let logoTermo = null;
+async function carregarLogoTermo() {
+  if (logoTermo) return logoTermo;
+  try {
+    const b = await (await fetch(LOGO_URL)).blob();
+    logoTermo = await new Promise(function (ok) { const f = new FileReader(); f.onload = function () { ok(f.result); }; f.readAsDataURL(b); });
+  } catch (e) { logoTermo = LOGO_URL; }
+  return logoTermo;
+}
+function cabecalhoTermo() {
+  return '<div class="cab"><img src="' + (logoTermo || LOGO_URL) + '"><div><b>PREFEITURA MUNICIPAL DE NOVA MUTUM – MT</b><br>' +
+    'ESTADO DE MATO GROSSO – CNPJ: 24.772.162/0001-06<br>SECRETARIA MUNICIPAL DE SAÚDE<br>Unidade: ' +
+    esc(perfil.unidade_nome || 'ESF Flor do Cerrado') + '</div></div>';
+}
+function linhasTabela(l) {
+  return '<table>' + l.map(function (x) { return '<tr><td>' + esc(x[0]) + '</td><td>' + (x[2] ? x[1] : esc(x[1] || '')) + '</td></tr>'; }).join('') + '</table>';
+}
+function marcar(valor, opcoes) {
+  return opcoes.map(function (o) { return (valor === o ? '(X) ' : '( ) ') + o.charAt(0) + o.slice(1).toLowerCase(); }).join('&nbsp;&nbsp;&nbsp;');
+}
+function assinatura(rotulo, nome) {
+  return '<div class="ass"><div class="linha">' + esc(rotulo) + (nome ? '<br>' + esc(nome) : '') + '</div></div>';
+}
+const BR = '____/____/______';
+
+async function imprimirTermoEmprestimo() {
+  const r = empAtual && empAtual.registro;
+  if (!r) return;
+  const w = abrirJanela('Termo de Empréstimo ' + r.codigo, CSS_TERMO);
+  if (!w) return;
+  await carregarLogoTermo();
+  let h = cabecalhoTermo() + '<h1>TERMO DE EMPRÉSTIMO DE BEM PATRIMONIAL</h1>' +
+    '<div class="num">Termo Nº ' + esc(r.codigo) + '</div>' +
+    '<div class="vias">(preencher em 2 vias: 1 fica com o responsável pela retirada, 1 fica arquivada na coordenação da unidade)</div>' +
+    '<h2>1. Identificação do bem</h2>' + linhasTabela([
+      ['Código PAT (etiqueta da unidade)', r.pat], ['Código da prefeitura (plaqueta)', r.codigo_prefeitura || 'sem plaqueta'],
+      ['Descrição do bem', r.descricao], ['Estado de conservação na saída', marcar(r.estado_saida, ['BOM', 'REGULAR', 'RUIM']), true],
+      ['Observações sobre o estado', r.obs_saida || '']
+    ]) +
+    '<h2>2. Identificação do usuário (paciente)</h2>' + linhasTabela([
+      ['Nome', ''], ['Cartão SUS (CNS)', ''], ['Data de nascimento', ''], ['Endereço', ''], ['Telefone', ''], ['ACS / microárea', '']
+    ]) +
+    '<h2>3. Responsável pela retirada</h2>' + linhasTabela([
+      ['Nome', r.responsavel_nome], ['CPF ou RG', ''], ['Parentesco ou vínculo com o paciente', r.responsavel_vinculo || ''],
+      ['Telefone', r.responsavel_telefone || '']
+    ]) +
+    '<h2>4. Autorização</h2>' + linhasTabela([
+      ['Profissional que indicou o empréstimo', r.profissional || ''], ['Cargo e registro (COREN, CREFITO, matrícula)', ''],
+      ['Finalidade', 'Uso domiciliar indicado pela equipe de saúde'], ['Data de saída', dataBR(r.data_saida)],
+      ['Data prevista para devolução ou reavaliação', dataBR(r.data_prevista)]
+    ]) +
+    '<h2>5. Declaração e compromissos</h2>' +
+    '<p>Eu, responsável pela retirada identificado acima, declaro ter recebido o bem descrito neste termo, em empréstimo, no estado de conservação registrado. Estou ciente de que:</p><ol>' +
+    '<li>O bem é patrimônio público do Município de Nova Mutum e está emprestado, não doado.</li>' +
+    '<li>O bem é de uso exclusivo do paciente identificado neste termo e não pode ser repassado, vendido ou emprestado a terceiros.</li>' +
+    '<li>Sou responsável pela guarda, limpeza e conservação do bem durante o empréstimo.</li>' +
+    '<li>Devo devolver o bem à ' + esc(perfil.unidade_nome || 'ESF Flor do Cerrado') + ' quando não houver mais necessidade de uso, ao fim do prazo ou quando a unidade solicitar.</li>' +
+    '<li>Devo procurar a unidade na data prevista para devolver o bem ou renovar o empréstimo.</li>' +
+    '<li>Devo avisar a unidade em caso de dano, defeito ou mudança de endereço ou de município.</li>' +
+    '<li>Em caso de perda, furto ou roubo, devo apresentar Boletim de Ocorrência (B.O.) à unidade.</li></ol>' +
+    '<div class="local">Nova Mutum, ' + esc(dataExtenso(r.data_saida)) + '.</div>' +
+    '<div class="ass2"><div>Responsável pela retirada<br>' + esc(r.responsavel_nome) + '</div>' +
+    '<div>Profissional que indicou<br>(carimbo e assinatura)' + (r.profissional ? '<br>' + esc(r.profissional) : '') + '</div>' +
+    '<div>Coordenação da unidade<br>(ciência)</div></div>' +
+    '<div class="rod">Patrimônio digital · ' + esc(r.codigo) + ' · emitido em ' + esc(dataHoraBR(new Date())) + ' por ' + esc(perfil.nome) + '</div>';
+  const c = w.document.getElementById('conteudo');
+  c.style.padding = '0'; c.style.fontFamily = 'inherit'; c.innerHTML = h;
+  imprimirQuandoPronto(w);
+}
+
+async function imprimirTermoDevolucao() {
+  const r = empAtual && empAtual.registro;
+  if (!r) return;
+  const feito = r.status === 'DEVOLVIDO';
+  const w = abrirJanela('Termo de Devolução ' + r.codigo, CSS_TERMO);
+  if (!w) return;
+  await carregarLogoTermo();
+  const motivos = ['Fim da necessidade de uso', 'Óbito do paciente ou mudança de município', 'Fim do prazo do empréstimo',
+    'Defeito ou dano no bem', 'Solicitação da unidade de saúde ou da SMS'];
+  const outro = feito && r.motivo_devolucao && motivos.indexOf(r.motivo_devolucao) < 0;
+  let h = cabecalhoTermo() + '<h1>TERMO DE DEVOLUÇÃO DE BEM PATRIMONIAL</h1>' +
+    '<div class="num">Referente ao Termo de Empréstimo Nº ' + esc(r.codigo) + '</div>' +
+    '<div class="vias">(grampear junto à via arquivada do empréstimo)</div>' +
+    '<h2>1. Bem devolvido</h2>' + linhasTabela([
+      ['Código PAT', r.pat], ['Código da prefeitura (plaqueta)', r.codigo_prefeitura || 'sem plaqueta'], ['Descrição do bem', r.descricao],
+      ['Data da devolução', feito ? dataBR(r.data_devolucao) : BR],
+      ['Estado de conservação na devolução', marcar(feito ? r.estado_devolucao : '', ['BOM', 'REGULAR', 'RUIM', 'QUEBRADO']), true],
+      ['Observações (avarias, peças faltando)', feito ? (r.obs_devolucao || '') : '']
+    ]) +
+    '<h2>2. Motivo da devolução</h2><div class="opc">' +
+    motivos.map(function (m) {
+      return (feito && r.motivo_devolucao === m ? '(X) ' : '( ) ') + esc(m) +
+        (m.indexOf('Óbito') === 0 ? ' (informação prestada por familiar ou responsável)' : '');
+    }).join('<br>') +
+    '<br>' + (outro || (feito && r.motivo_devolucao === 'Outro') ? '(X) ' : '( ) ') + 'Outro: ' +
+    (outro ? esc(r.motivo_devolucao) : '______________________________') + '</div>' +
+    '<h2>3. Quem devolveu</h2>' + linhasTabela([
+      ['Nome', feito ? r.devolvido_por : ''], ['CPF ou RG', ''], ['Parentesco ou vínculo com o paciente', '']
+    ]) +
+    '<h2>4. Recebimento e conferência</h2>' +
+    '<p>Declaro que recebi o bem acima, conferi o código PAT e a plaqueta da prefeitura e registrei o estado de conservação.</p>' +
+    linhasTabela([
+      ['Nome de quem recebeu', feito ? r.recebido_nome : ''], ['Matrícula', ''],
+      ['Sala para onde o bem voltou', feito ? r.sala_retorno : ''],
+      ['Devolução registrada no Patrimônio digital', feito ? '(X) Sim' : '( ) Sim', true]
+    ]) +
+    '<div class="local">Nova Mutum, ' + (feito ? esc(dataExtenso(r.data_devolucao)) : '____ de ______________ de ______') + '.</div>' +
+    assinatura('Responsável pela devolução', feito ? r.devolvido_por : '') +
+    assinatura('Responsável pelo recebimento e conferência', feito ? r.recebido_nome : '') +
+    '<div class="rod">Patrimônio digital · ' + esc(r.codigo) + ' · emitido em ' + esc(dataHoraBR(new Date())) + ' por ' + esc(perfil.nome) + '</div>';
+  const c = w.document.getElementById('conteudo');
+  c.style.padding = '0'; c.style.fontFamily = 'inherit'; c.innerHTML = h;
+  imprimirQuandoPronto(w);
+}
+
+function dataExtenso(iso) {
+  const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return '____ de ______________ de ______';
+  const meses = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
+  return Number(m[3]) + ' de ' + meses[Number(m[2]) - 1] + ' de ' + m[1];
+}
+
+// ===================================================================
 // DUPLICADOS E UNIFICAÇÃO (só administradores)
 // ===================================================================
 let unifA = null, unifB = null, unifManter = 'A';
@@ -2164,12 +2671,13 @@ function voltarDaFicha() {
 }
 
 function voltarInicio() {
-  itemAtual = null; baixaAtual = null; origemFicha = null;
+  itemAtual = null; baixaAtual = null; origemFicha = null; empAtual = null;
   pararScanner();
   mostrar('tela-inicial');
   inputManual.value = '';
   $('status-inicial').innerHTML = '';
   atualizarMiniProgresso();
+  if (perfil) atualizarBotaoEmprestimos();
 }
 
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(function () {});
