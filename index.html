@@ -2160,17 +2160,18 @@ async function carregarListaEmprestimos() {
 
 // ----- Termos impressos (mesmo modelo do documento aprovado pela coordenação) -----
 const CSS_TERMO = '@page{size:A4;margin:11mm 15mm}body{font-family:Arial,Helvetica,sans-serif;color:#111;font-size:9.6pt}' +
-  '.cab{display:flex;align-items:center;gap:14px;margin-bottom:6px}.cab img{height:62px}' +
+  '.cab{display:flex;align-items:center;gap:14px;margin-bottom:2px}.cab img{height:56px}' +
   '.cab div{font-size:9pt;line-height:1.35}.cab b{font-size:10pt}' +
-  'h1{font-size:12.5pt;text-align:center;margin:8px 0 2px}.num{text-align:center;font-weight:700;margin-bottom:2px}' +
+  'h1{font-size:12.5pt;text-align:center;margin:4px 0 1px}.num{text-align:center;font-weight:700;margin-bottom:2px}' +
   '.vias{text-align:center;font-size:8pt;color:#444;margin-bottom:4px}' +
-  'h2{font-size:9.6pt;margin:8px 0 3px;text-transform:uppercase}' +
-  'table{width:100%;border-collapse:collapse}td{border:1px solid #777;padding:3px 6px;vertical-align:top;height:13px}' +
+  'h2{font-size:9.6pt;margin:6px 0 2px;text-transform:uppercase}' +
+  'table{width:100%;border-collapse:collapse}td{border:1px solid #777;padding:3px 6px;vertical-align:middle;height:17px}' +
+  '.t4 td.r{width:21%;font-weight:700;background:#F1F4EE}.t4 td{width:29%}' +
   'td:first-child{width:40%;font-weight:700;background:#F1F4EE}' +
-  'p{text-align:justify;margin:4px 0}ol{margin:2px 0 0 0;padding-left:20px}ol li{text-align:justify;margin:1px 0}' +
-  '.local{text-align:right;margin-top:10px}.ass{margin-top:26px;text-align:center;font-size:9pt}' +
+  'p{text-align:justify;margin:3px 0}ol{margin:1px 0 0 0;padding-left:20px;font-size:9.2pt}ol li{text-align:justify;margin:0}' +
+  '.local{text-align:right;margin-top:8px}.ass{margin-top:24mm;text-align:center;font-size:9pt}' +
   '.ass .linha{border-top:1px solid #111;width:62%;margin:0 auto;padding-top:2px}' +
-  '.ass2{display:flex;gap:18px;margin-top:34px;text-align:center;font-size:9pt}.ass2 div{flex:1;border-top:1px solid #111;padding-top:2px}' +
+  '.ass2{display:flex;gap:18px;margin-top:24mm;text-align:center;font-size:9pt}.ass2 div{flex:1;border-top:1px solid #111;padding-top:2px}' +
   '.opc{line-height:1.6}.rod{text-align:center;font-size:7pt;color:#999;margin-top:12px}';
 // O brasão vai embutido no termo (não depende de a janela de impressão conseguir baixar a imagem)
 let logoTermo = null;
@@ -2190,6 +2191,14 @@ function cabecalhoTermo() {
 function linhasTabela(l) {
   return '<table>' + l.map(function (x) { return '<tr><td>' + esc(x[0]) + '</td><td>' + (x[2] ? x[1] : esc(x[1] || '')) + '</td></tr>'; }).join('') + '</table>';
 }
+// Tabela em 4 colunas: [rótulo, valor] ocupa a linha toda; [r1, v1, r2, v2] divide em duas
+function tabela4(l) {
+  return '<table class="t4">' + l.map(function (x) {
+    return x.length > 2
+      ? '<tr><td class="r">' + esc(x[0]) + '</td><td>' + esc(x[1] || '') + '</td><td class="r">' + esc(x[2]) + '</td><td>' + esc(x[3] || '') + '</td></tr>'
+      : '<tr><td class="r">' + esc(x[0]) + '</td><td colspan="3">' + esc(x[1] || '') + '</td></tr>';
+  }).join('') + '</table>';
+}
 function marcar(valor, opcoes) {
   return opcoes.map(function (o) { return (valor === o ? '(X) ' : '( ) ') + o.charAt(0) + o.slice(1).toLowerCase(); }).join('&nbsp;&nbsp;&nbsp;');
 }
@@ -2207,22 +2216,21 @@ async function imprimirTermoEmprestimo() {
   let h = cabecalhoTermo() + '<h1>TERMO DE EMPRÉSTIMO DE BEM PATRIMONIAL</h1>' +
     '<div class="num">Termo Nº ' + esc(r.codigo) + '</div>' +
     '<div class="vias">(preencher em 2 vias: 1 fica com o responsável pela retirada, 1 fica arquivada na coordenação da unidade)</div>' +
-    '<h2>1. Identificação do bem</h2>' + linhasTabela([
-      ['Código PAT (etiqueta da unidade)', r.pat], ['Código da prefeitura (plaqueta)', r.codigo_prefeitura || 'sem plaqueta'],
-      ['Descrição do bem', r.descricao], ['Estado de conservação na saída', marcar(r.estado_saida, ['BOM', 'REGULAR', 'RUIM']), true],
-      ['Observações sobre o estado', r.obs_saida || '']
+    '<h2>1. Identificação do bem</h2>' + tabela4([
+      ['Código PAT', r.pat, 'Código da prefeitura', r.codigo_prefeitura || 'sem plaqueta'], ['Descrição do bem', r.descricao]
+    ]).replace('</table>', '<tr><td class="r">Estado na saída</td><td colspan="3">' + marcar(r.estado_saida, ['BOM', 'REGULAR', 'RUIM']) +
+      (r.obs_saida ? ' — ' + esc(r.obs_saida) : '&nbsp;&nbsp;&nbsp;&nbsp;Obs.: ____________________________________') + '</td></tr></table>') +
+    '<h2>2. Identificação do usuário (paciente)</h2>' + tabela4([
+      ['Nome', ''], ['Cartão SUS (CNS)', '', 'Data de nascimento', ''], ['Endereço', ''], ['Telefone', '', 'ACS / microárea', '']
     ]) +
-    '<h2>2. Identificação do usuário (paciente)</h2>' + linhasTabela([
-      ['Nome', ''], ['Cartão SUS (CNS)', ''], ['Data de nascimento', ''], ['Endereço', ''], ['Telefone', ''], ['ACS / microárea', '']
+    '<h2>3. Responsável pela retirada</h2>' + tabela4([
+      ['Nome', r.responsavel_nome], ['CPF ou RG', '', 'Telefone', r.responsavel_telefone || ''],
+      ['Parentesco / vínculo', r.responsavel_vinculo || '']
     ]) +
-    '<h2>3. Responsável pela retirada</h2>' + linhasTabela([
-      ['Nome', r.responsavel_nome], ['CPF ou RG', ''], ['Parentesco ou vínculo com o paciente', r.responsavel_vinculo || ''],
-      ['Telefone', r.responsavel_telefone || '']
-    ]) +
-    '<h2>4. Autorização</h2>' + linhasTabela([
-      ['Profissional que indicou o empréstimo', r.profissional || ''], ['Cargo e registro (COREN, CREFITO, matrícula)', ''],
-      ['Finalidade', 'Uso domiciliar indicado pela equipe de saúde'], ['Data de saída', dataBR(r.data_saida)],
-      ['Data prevista para devolução ou reavaliação', dataBR(r.data_prevista)]
+    '<h2>4. Autorização</h2>' + tabela4([
+      ['Profissional que indicou', r.profissional || '', 'Cargo e registro', ''],
+      ['Finalidade', 'Uso domiciliar indicado pela equipe de saúde'],
+      ['Data de saída', dataBR(r.data_saida), 'Devolução / reavaliação prevista', dataBR(r.data_prevista)]
     ]) +
     '<h2>5. Declaração e compromissos</h2>' +
     '<p>Eu, responsável pela retirada identificado acima, declaro ter recebido o bem descrito neste termo, em empréstimo, no estado de conservação registrado. Estou ciente de que:</p><ol>' +
@@ -2269,8 +2277,8 @@ async function imprimirTermoDevolucao() {
     }).join('<br>') +
     '<br>' + (outro || (feito && r.motivo_devolucao === 'Outro') ? '(X) ' : '( ) ') + 'Outro: ' +
     (outro ? esc(r.motivo_devolucao) : '______________________________') + '</div>' +
-    '<h2>3. Quem devolveu</h2>' + linhasTabela([
-      ['Nome', feito ? r.devolvido_por : ''], ['CPF ou RG', ''], ['Parentesco ou vínculo com o paciente', '']
+    '<h2>3. Quem devolveu</h2>' + tabela4([
+      ['Nome', feito ? r.devolvido_por : ''], ['CPF ou RG', '', 'Parentesco / vínculo', '']
     ]) +
     '<h2>4. Recebimento e conferência</h2>' +
     '<p>Declaro que recebi o bem acima, conferi o código PAT e a plaqueta da prefeitura e registrei o estado de conservação.</p>' +
